@@ -3202,6 +3202,33 @@ app.post("/api/adviser/calls/request", (req, res) => {
     };
 
     adviserCallsMap.set(callId, newCall);
+
+    // Initialize WebRTC signaling session in cameraSessionsMap if not already existing
+    if (!cameraSessionsMap.has(newCall.sessionId)) {
+      const now = Date.now();
+      const token = crypto.randomBytes(16).toString("hex");
+      const lanIps = getLocalLanIps();
+      const preferredIp = lanIps[0] || "localhost";
+      const { origin: baseUrl } = resolveAuthoritativeOrigin(req);
+      const hostHeader = req.headers.host || `${preferredIp}:${PORT}`;
+
+      cameraSessionsMap.set(newCall.sessionId, {
+        sessionId: newCall.sessionId,
+        token,
+        pin: "123456",
+        state: "CREATED",
+        createdAt: now,
+        expiresAt: now + 30 * 60 * 1000,
+        laptopHost: hostHeader,
+        laptopLanIp: preferredIp,
+        signalStrength: "disconnected",
+        verifiedFrameCount: 0,
+        phoneIceCandidates: [],
+        laptopIceCandidates: [],
+        lastLaptopHeartbeat: now,
+      });
+    }
+
     broadcastSseEvent("CALL_REQUESTED", newCall);
 
     adminAuditLogs.unshift({

@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Mic, MicOff, Volume2, VolumeX, PhoneOff, Video, RefreshCw, Sparkles, MessageSquare, AlertCircle, CheckCircle, ShieldCheck, MapPin } from 'lucide-react';
+import { Mic, MicOff, Volume2, VolumeX, PhoneOff, Video, RefreshCw, Sparkles, MessageSquare, AlertCircle, CheckCircle, ShieldCheck, MapPin, Radio } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { FarmerAdviserCallSession, CallAnnotation } from '../../types';
 import { farmerAdviserService } from '../../services/farmerAdviserService';
+import { webRTCPairingService, STUN_SERVERS } from '../../services/webrtc/webRTCPairingService';
 
 interface FarmerAdviserLiveCallProps {
   isOpen: boolean;
@@ -31,35 +32,53 @@ export const FarmerAdviserLiveCall: React.FC<FarmerAdviserLiveCallProps> = ({
 }) => {
   const { language } = useLanguage();
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+  const pcRef = useRef<RTCPeerConnection | null>(null);
+  const localStreamRef = useRef<MediaStream | null>(null);
+
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [callSession, setCallSession] = useState<FarmerAdviserCallSession | null>(null);
   const [isMuted, setIsMuted] = useState(false);
   const [isSpeakerOn, setIsSpeakerOn] = useState(true);
-  const [callStatus, setCallStatus] = useState<'CONNECTING' | 'RINGING' | 'CONNECTED' | 'ENDED'>('CONNECTING');
+  const [callStatus, setCallStatus] = useState<'CONNECTING' | 'RINGING' | 'CONNECTED' | 'STREAMING' | 'ENDED'>('CONNECTING');
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
   const [liveAnnotations, setLiveAnnotations] = useState<CallAnnotation[]>([]);
   const [latestAdviserNote, setLatestAdviserNote] = useState<string | null>(null);
+  const [hasAdviserAudio, setHasAdviserAudio] = useState(false);
 
-  // Start Camera and initiate call request to Adviser
+  // 1. Initialize Camera, Microphone, and WebRTC Peer Connection
   useEffect(() => {
     if (!isOpen) return;
 
-    let localStream: MediaStream | null = null;
+    let isMounted = true;
+    let iceCandidateSince = 0;
+    let answerPollingTimer: any = null;
+    let icePollingTimer: any = null;
+    let hasAppliedAnswer = false;
 
-    const startSession = async () => {
+    const setupFarmerCall = async () => {
       try {
         setCallStatus('CONNECTING');
+
+        // Request real camera & microphone stream
         const mediaStream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: { ideal: facingMode }, width: { ideal: 1280 }, height: { ideal: 720 } },
           audio: true,
         });
 
-        localStream = mediaStream;
+        if (!isMounted) {
+          mediaStream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+
+        localStreamRef.current = mediaStream;
         setStream(mediaStream);
 
         if (videoRef.current) {
           videoRef.current.srcObject = mediaStream;
-          videoRef.current.play().catch(() => {});
+          videoRef.current.play().catch((err) => {
+            console.warn('[FarmerCall] Local video autoplay:', err);
+          });
         }
 
         // Send call request to Adviser queue
@@ -74,24 +93,126 @@ export const FarmerAdviserLiveCall: React.FC<FarmerAdviserLiveCallProps> = ({
           croperxObservation,
         });
 
+        if (!isMounted) return;
         setCallSession(session);
         setCallStatus('RINGING');
+
+        const sessionId = session.sessionId;
+
+        // Initialize RTCPeerConnection
+        const pc = new RTCPeerConnection(STUN_SERVERS);
+        pcRef.current = pc;
+
+        // Add local video & audio tracks to WebRTC connection
+        mediaStream.getTracks().forEach((track) => {
+          pc.addTrack(track, mediaStream);
+        });
+
+        // Handle incoming tracks from Adviser (two-way audio)
+        pc.ontrack = (event) => {
+          console.log('[FarmerCall] Received remote track from Adviser:', event.track.kind);
+          const incomingStream = event.streams?.[0] || new MediaStream([event.track]);
+          if (remoteAudioRef.current) {
+            remoteAudioRef.current.srcObject = incomingStream;
+            remoteAudioRef.current.play().catch((e) => console.warn('[FarmerCall] Remote audio play:', e));
+          }
+          if (event.track.kind === 'audio') {
+            setHasAdviserAudio(true);
+          }
+        };
+
+        // Handle local ICE candidates and post to signaling server
+        pc.onicecandidate = (event) => {
+          if (event.candidate) {
+            webRTCPairingService.sendIceCandidate(sessionId, event.candidate.toJSON(), 'phone');
+          }
+        };
+
+        pc.onconnectionstatechange = () => {
+          console.log('[FarmerCall] WebRTC Connection State:', pc.connectionState);
+          if (pc.connectionState === 'connected') {
+            setCallStatus('CONNECTED');
+          } else if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+            console.warn('[FarmerCall] WebRTC connection state:', pc.connectionState);
+          }
+        };
+
+        // Create SDP Offer
+        const offer = await pc.createOffer({
+          offerToReceiveAudio: true,
+          offerToReceiveVideo: true,
+        });
+        await pc.setLocalDescription(offer);
+
+        // Upload SDP offer to signaling endpoint
+        await webRTCPairingService.sendOffer(sessionId, offer.sdp || '', 'Farmer Mobile Camera');
+        await webRTCPairingService.updateSessionState(sessionId, 'OFFER_CREATED');
+
+        // Poll for Adviser SDP Answer
+        answerPollingTimer = setInterval(async () => {
+          if (hasAppliedAnswer || !pcRef.current) return;
+          try {
+            const answerData = await webRTCPairingService.getAnswer(sessionId);
+            if (answerData.hasAnswer && answerData.sdp) {
+              hasAppliedAnswer = true;
+              await pcRef.current.setRemoteDescription(
+                new RTCSessionDescription({ type: 'answer', sdp: answerData.sdp })
+              );
+              await webRTCPairingService.updateSessionState(sessionId, 'ANSWER_RECEIVED');
+              setCallStatus('CONNECTED');
+            }
+          } catch (e) {
+            console.warn('[FarmerCall] Error applying answer:', e);
+          }
+        }, 1000);
+
+        // Poll for Adviser ICE Candidates
+        icePollingTimer = setInterval(async () => {
+          if (!pcRef.current) return;
+          try {
+            const iceData = await webRTCPairingService.getIceCandidates(sessionId, 'phone', iceCandidateSince);
+            if (iceData.candidates && iceData.candidates.length > 0) {
+              for (const cand of iceData.candidates) {
+                try {
+                  await pcRef.current.addIceCandidate(new RTCIceCandidate(cand));
+                } catch (candErr) {
+                  console.warn('[FarmerCall] Failed adding ICE candidate:', candErr);
+                }
+              }
+              iceCandidateSince = iceData.latestTimestamp;
+            }
+          } catch (e) {
+            console.warn('[FarmerCall] ICE polling error:', e);
+          }
+        }, 1000);
+
       } catch (err: any) {
-        console.warn('Call start error:', err);
-        setCallStatus('RINGING'); // Proceed even if virtual stream
+        console.warn('[FarmerCall] Start error:', err);
+        setCallStatus('RINGING');
       }
     };
 
-    startSession();
+    setupFarmerCall();
 
     return () => {
-      if (localStream) {
-        localStream.getTracks().forEach((t) => t.stop());
+      isMounted = false;
+      if (answerPollingTimer) clearInterval(answerPollingTimer);
+      if (icePollingTimer) clearInterval(icePollingTimer);
+
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach((t) => t.stop());
+        localStreamRef.current = null;
+      }
+      if (pcRef.current) {
+        try {
+          pcRef.current.close();
+        } catch {}
+        pcRef.current = null;
       }
     };
-  }, [isOpen, facingMode]);
+  }, [isOpen]);
 
-  // Poll for Adviser Call Acceptance & Live Annotations
+  // 2. Poll for Adviser Call Acceptance & Live Annotations
   useEffect(() => {
     if (!isOpen || !callSession?.callId) return;
 
@@ -100,7 +221,9 @@ export const FarmerAdviserLiveCall: React.FC<FarmerAdviserLiveCallProps> = ({
       if (updated) {
         setCallSession(updated);
         if (updated.status === 'ACCEPTED' || updated.status === 'ACTIVE') {
-          setCallStatus('CONNECTED');
+          if (callStatus === 'RINGING' || callStatus === 'CONNECTING') {
+            setCallStatus('CONNECTED');
+          }
         } else if (updated.status === 'ENDED' || updated.status === 'DECLINED') {
           setCallStatus('ENDED');
         }
@@ -116,13 +239,13 @@ export const FarmerAdviserLiveCall: React.FC<FarmerAdviserLiveCallProps> = ({
     }, 1200);
 
     return () => clearInterval(interval);
-  }, [isOpen, callSession?.callId]);
+  }, [isOpen, callSession?.callId, callStatus]);
 
-  // Toggle Mute
+  // 3. Toggle Mute (Affects only local audio track)
   const handleToggleMute = () => {
-    if (stream) {
-      stream.getAudioTracks().forEach((track) => {
-        track.enabled = isMuted; // toggle
+    if (localStreamRef.current) {
+      localStreamRef.current.getAudioTracks().forEach((track) => {
+        track.enabled = isMuted; // Toggle
       });
     }
     const nextMuted = !isMuted;
@@ -132,29 +255,78 @@ export const FarmerAdviserLiveCall: React.FC<FarmerAdviserLiveCallProps> = ({
     }
   };
 
-  // Toggle Camera
-  const handleToggleCamera = () => {
-    setFacingMode((prev) => (prev === 'environment' ? 'user' : 'environment'));
+  // 4. Switch Camera (replace video track smoothly on existing WebRTC connection)
+  const handleToggleCamera = async () => {
+    const nextFacingMode = facingMode === 'environment' ? 'user' : 'environment';
+    setFacingMode(nextFacingMode);
+
+    try {
+      const newStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: nextFacingMode }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false,
+      });
+
+      const newVideoTrack = newStream.getVideoTracks()[0];
+      if (!newVideoTrack) return;
+
+      // Update local preview
+      if (videoRef.current && localStreamRef.current) {
+        const oldVideoTrack = localStreamRef.current.getVideoTracks()[0];
+        if (oldVideoTrack) {
+          localStreamRef.current.removeTrack(oldVideoTrack);
+          oldVideoTrack.stop();
+        }
+        localStreamRef.current.addTrack(newVideoTrack);
+        videoRef.current.srcObject = localStreamRef.current;
+      }
+
+      // Replace track on existing RTCPeerConnection sender
+      if (pcRef.current) {
+        const senders = pcRef.current.getSenders();
+        const videoSender = senders.find((s) => s.track && s.track.kind === 'video');
+        if (videoSender) {
+          await videoSender.replaceTrack(newVideoTrack);
+        }
+      }
+    } catch (e) {
+      console.warn('[FarmerCall] Switch camera error:', e);
+    }
   };
 
-  // End Call
+  // 5. End Call
   const handleEndCall = async () => {
     if (callSession?.callId) {
       await farmerAdviserService.endCall(callSession.callId);
     }
-    if (stream) {
-      stream.getTracks().forEach((t) => t.stop());
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach((t) => t.stop());
+      localStreamRef.current = null;
+    }
+    if (pcRef.current) {
+      try {
+        pcRef.current.close();
+      } catch {}
+      pcRef.current = null;
     }
     setCallStatus('ENDED');
     setTimeout(() => {
       onClose();
-    }, 400);
+    }, 300);
   };
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950 text-white flex flex-col justify-between overflow-hidden">
+      {/* Hidden Two-Way Remote Audio Element */}
+      <audio
+        ref={remoteAudioRef}
+        autoPlay
+        playsInline
+        muted={!isSpeakerOn}
+        className="hidden"
+      />
+
       {/* Top Clean Header Bar */}
       <div className="relative z-30 flex items-center justify-between p-4 bg-gradient-to-b from-black/90 via-black/50 to-transparent">
         {/* Adviser Profile Capsule */}
@@ -176,6 +348,7 @@ export const FarmerAdviserLiveCall: React.FC<FarmerAdviserLiveCallProps> = ({
                 <>
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                   {language === 'hi' ? 'सलाहकार लाइव जुड़े हैं' : 'Adviser Live on Call'}
+                  {hasAdviserAudio && <span className="text-[9px] text-blue-300 ml-1">(2-Way Audio)</span>}
                 </>
               ) : callStatus === 'RINGING' ? (
                 <>
@@ -192,8 +365,9 @@ export const FarmerAdviserLiveCall: React.FC<FarmerAdviserLiveCallProps> = ({
         {/* Switch Camera Button */}
         <button
           onClick={handleToggleCamera}
-          className="p-3 rounded-2xl bg-white/15 hover:bg-white/25 backdrop-blur-md text-white transition-all"
+          className="p-3 rounded-2xl bg-white/15 hover:bg-white/25 backdrop-blur-md text-white transition-all cursor-pointer"
           title="Switch Camera"
+          aria-label="Switch Camera"
         >
           <RefreshCw className="w-5 h-5" />
         </button>
@@ -297,7 +471,7 @@ export const FarmerAdviserLiveCall: React.FC<FarmerAdviserLiveCallProps> = ({
         {/* Mute/Unmute Mic */}
         <button
           onClick={handleToggleMute}
-          className={`w-14 h-14 rounded-full flex flex-col items-center justify-center text-white transition-all shadow-lg ${
+          className={`w-14 h-14 rounded-full flex flex-col items-center justify-center text-white transition-all shadow-lg cursor-pointer ${
             isMuted ? 'bg-rose-600 shadow-rose-500/30' : 'bg-slate-800 hover:bg-slate-700'
           }`}
           aria-label="Toggle Microphone"
@@ -323,7 +497,7 @@ export const FarmerAdviserLiveCall: React.FC<FarmerAdviserLiveCallProps> = ({
         {/* Speaker Toggle */}
         <button
           onClick={() => setIsSpeakerOn((s) => !s)}
-          className={`w-14 h-14 rounded-full flex flex-col items-center justify-center text-white transition-all shadow-lg ${
+          className={`w-14 h-14 rounded-full flex flex-col items-center justify-center text-white transition-all shadow-lg cursor-pointer ${
             isSpeakerOn ? 'bg-slate-800 hover:bg-slate-700' : 'bg-slate-700/60 text-slate-400'
           }`}
           aria-label="Toggle Speaker"
@@ -335,3 +509,4 @@ export const FarmerAdviserLiveCall: React.FC<FarmerAdviserLiveCallProps> = ({
     </div>
   );
 };
+
