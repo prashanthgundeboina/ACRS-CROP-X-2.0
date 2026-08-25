@@ -1,0 +1,12 @@
+{
+  "name": "Remix Remix Remix Remix Remix ADVANCED CROP RECOMENDATION SYSTEM-CROP X",
+  "description": "An advanced agricultural intelligence platform utilizing a 22-parameter hybrid ML architecture (KNN, RandomForest, XGBoost) and Gemini AI for high-precision crop recommendations and diagnostics.",
+  "requestFramePermissions": [
+    "geolocation",
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

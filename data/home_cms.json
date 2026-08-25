@@ -1,0 +1,123 @@
+{
+  "heroTitle": "Welcome to CroperX",
+  "heroHeading": "Your Field. Your Crop. Your Intelligence.",
+  "heroSubtitle": "AI-powered farming intelligence connecting farmers, advisers, cameras, sensors, weather and field data.",
+  "heroDescription": "CroperX connects farmers, advisers, AI, cameras, sensors, weather and field intelligence in one unified agricultural platform.",
+  "primaryActionLabel": "Login",
+  "secondaryActionLabel": "Register",
+  "exploreActionLabel": "Explore CroperX",
+  "activeMediaType": "video",
+  "heroVideoUrl": "https://assets.mixkit.co/videos/preview/mixkit-drone-view-of-a-tractor-in-a-field-42588-large.mp4",
+  "heroImageUrl": "https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1920&q=85",
+  "posterImageUrl": "https://images.unsplash.com/photo-1625246333195-78d9c38ad449?auto=format&fit=crop&w=1920&q=80",
+  "videoSettings": {
+    "autoplay": true,
+    "muted": true,
+    "loop": true,
+    "playsInline": true
+  },
+  "sectionToggles": {
+    "overview": true,
+    "howItWorks": true,
+    "roles": true,
+    "statsBanner": true,
+    "liveShowcase": true,
+    "capabilities": true,
+    "trust": true,
+    "announcements": true,
+    "cta": true
+  },
+  "announcements": [
+    {
+      "id": "ann-01",
+      "title": "Regional Monsoon & Irrigation Alert",
+      "message": "North-Western Agro Climatic Zone 4: Intermittent showers expected over next 48h. Recalibrate drip volume by -30% to conserve power and prevent waterlogging.",
+      "priority": "Important",
+      "startDate": "2026-08-01",
+      "endDate": "2026-09-30",
+      "isActive": true,
+      "createdAt": "2026-08-20T08:00:00.000Z"
+    },
+    {
+      "id": "ann-02",
+      "title": "Live Agronomist Hours Extended",
+      "message": "Certified agricultural advisers are now available for direct WebRTC video triage from 06:00 AM to 09:00 PM IST daily.",
+      "priority": "Information",
+      "startDate": "2026-08-15",
+      "endDate": "2026-10-31",
+      "isActive": true,
+      "createdAt": "2026-08-22T10:00:00.000Z"
+    }
+  ],
+  "sections": [
+    { "id": "hero", "name": "Hero Showcase", "title": "Welcome to CroperX", "subtitle": "Your Field. Your Crop. Your Intelligence.", "enabled": true, "order": 1 },
+    { "id": "announcements", "name": "Public Announcements", "title": "Important Agricultural Advisories", "enabled": true, "order": 2 },
+    { "id": "howItWorks", "name": "How It Works", "title": "How CroperX Works", "subtitle": "Four streamlined steps from field observation to high-yield action", "enabled": true, "order": 3 },
+    { "id": "liveShowcase", "name": "Live Field Showcase", "title": "See CroperX in the Field", "subtitle": "Interactive real-time telemetry and augmented drone intelligence in action", "enabled": true, "order": 4 },
+    { "id": "capabilities", "name": "Capability Showcase", "title": "Unified Agricultural Intelligence", "subtitle": "Comprehensive agronomic tools for every layer of your farm", "enabled": true, "order": 5 },
+    { "id": "roles", "name": "Role Gateways", "title": "CroperX for Everyone", "subtitle": "Tailored workspaces designed specifically for farmers, field advisers, and administrators", "enabled": true, "order": 6 },
+    { "id": "trust", "name": "Trust & Privacy", "title": "Built for Real Farms", "subtitle": "Engineered with transparent data boundaries, role-based protection, and verified agronomy", "enabled": true, "order": 7 },
+    { "id": "cta", "name": "Call To Action", "title": "Ready to understand your field better?", "subtitle": "Join thousands of farmers and advisers using CroperX 2.0 today.", "enabled": true, "order": 8 }
+  ],
+  "mediaLibrary": [
+    {
+      "id": "media-drone-01",
+      "type": "Drone Field Video",
+      "title": "Aerial Precision Tractor & Crop Canopy",
+      "url": "https://assets.mixkit.co/videos/preview/mixkit-drone-view-of-a-tractor-in-a-field-42588-large.mp4",
+      "posterUrl": "https://images.unsplash.com/photo-1625246333195-78d9c38ad449?auto=format&fit=crop&w=1200&q=80",
+      "isActive": true,
+      "isBackground": true,
+      "category": "Drone",
+      "uploadedAt": "2026-08-20T10:00:00.000Z",
+      "fileSizeMb": 14.2
+    },
+    {
+      "id": "media-video-02",
+      "type": "Hero Video",
+      "title": "Lush Green Rice & Wheat Fields at Sunrise",
+      "url": "https://assets.mixkit.co/videos/preview/mixkit-wind-blowing-over-green-wheat-fields-43640-large.mp4",
+      "posterUrl": "https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1200&q=80",
+      "isActive": false,
+      "isBackground": false,
+      "category": "Hero",
+      "uploadedAt": "2026-08-18T14:30:00.000Z",
+      "fileSizeMb": 18.6
+    },
+    {
+      "id": "media-img-01",
+      "type": "Hero Image",
+      "title": "Golden Hour Alluvial Farmland Panorama",
+      "url": "https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1920&q=85",
+      "posterUrl": "https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=600&q=80",
+      "isActive": false,
+      "isBackground": false,
+      "category": "Field",
+      "uploadedAt": "2026-08-15T09:15:00.000Z",
+      "fileSizeMb": 3.4
+    },
+    {
+      "id": "media-img-02",
+      "type": "Secondary Field Image",
+      "title": "Smart Irrigation Center-Pivot & Soil Sensor Array",
+      "url": "https://images.unsplash.com/photo-1586771107445-d3ca888129ff?auto=format&fit=crop&w=1920&q=80",
+      "posterUrl": "https://images.unsplash.com/photo-1586771107445-d3ca888129ff?auto=format&fit=crop&w=600&q=80",
+      "isActive": false,
+      "isBackground": false,
+      "category": "Field",
+      "uploadedAt": "2026-08-10T11:45:00.000Z",
+      "fileSizeMb": 2.8
+    }
+  ],
+  "versions": [
+    {
+      "version": 1,
+      "config": null,
+      "publishedAt": "2026-08-20T10:00:00.000Z",
+      "publishedBy": "System Administrator",
+      "changeSummary": "Initial CroperX 2.0 Public Gateway baseline published"
+    }
+  ],
+  "updatedAt": "2026-08-24T00:00:00.000Z",
+  "updatedBy": "System Administrator"
+}

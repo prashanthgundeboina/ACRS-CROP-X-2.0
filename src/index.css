@@ -1,0 +1,314 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:ital,wght@1,400;1,600&display=swap');
+
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-serif: 'Playfair Display', serif;
+  
+  --color-warm-bg: #f8fcf8;
+  --color-charcoal: #1b2e1b;
+  --color-olive: #4CAF50;
+  --color-olive-muted: #5b7a5b;
+  --color-olive-light: rgba(76, 175, 80, 0.1);
+  --color-olive-faint: rgba(76, 175, 80, 0.05);
+}
+
+body {
+  background-color: var(--color-warm-bg);
+  color: var(--color-charcoal);
+  font-family: var(--font-sans);
+}
+
+.organic-panel {
+  background: white;
+  border-radius: 24px;
+  padding: 32px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.03);
+  border: 1px solid var(--color-olive-light);
+}
+
+.input-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--color-olive-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.farming-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  border: 1px solid var(--color-olive-light);
+  background: white;
+  transition: all 0.2s ease;
+  font-size: 14px;
+}
+
+.farming-input:focus {
+  outline: none;
+  border-color: var(--color-olive);
+  box-shadow: 0 0 0 2px var(--color-olive-light);
+}
+
+.btn-primary {
+  background: var(--color-olive);
+  color: white;
+  border: none;
+  padding: 16px;
+  border-radius: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-primary:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
+.insights-box {
+  padding: 24px;
+  background: var(--color-olive-faint);
+  border-radius: 16px;
+  font-size: 14px;
+  line-height: 1.6;
+  border-left: 4px solid var(--color-olive);
+}
+
+/* Custom Minimal Scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(46, 125, 50, 0.2);
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(46, 125, 50, 0.4);
+}
+
+/* Theme Variables for Farm Command Center & Orchestrator */
+:root {
+  --cmd-bg: #f8fafc;
+  --cmd-surface: #ffffff;
+  --cmd-surface-elevated: #f1f5f9;
+  --cmd-border: #e2e8f0;
+  --cmd-text-primary: #0f172a;
+  --cmd-text-secondary: #475569;
+  --cmd-text-muted: #64748b;
+  --cmd-accent: #059669;
+  --cmd-accent-rgb: 5, 150, 105;
+  --cmd-accent-glow: rgba(5, 150, 105, 0.2);
+  --cmd-card-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.02);
+  --cmd-card-shadow-3d: 0 20px 35px -10px rgba(5, 150, 105, 0.12);
+  --cmd-heartbeat-glow: rgba(16, 185, 129, 0.6);
+}
+
+.theme-farm-light {
+  --cmd-bg: #f8fafc;
+  --cmd-surface: #ffffff;
+  --cmd-surface-elevated: #f1f5f9;
+  --cmd-border: #e2e8f0;
+  --cmd-text-primary: #0f172a;
+  --cmd-text-secondary: #475569;
+  --cmd-text-muted: #64748b;
+  --cmd-accent: #059669;
+  --cmd-accent-rgb: 5, 150, 105;
+  --cmd-accent-glow: rgba(5, 150, 105, 0.25);
+  --cmd-card-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.06);
+  --cmd-card-shadow-3d: 0 20px 35px -10px rgba(5, 150, 105, 0.15);
+  --cmd-heartbeat-glow: rgba(16, 185, 129, 0.7);
+}
+
+.theme-cinematic-dark {
+  --cmd-bg: #030712;
+  --cmd-surface: #0b1329;
+  --cmd-surface-elevated: #111e38;
+  --cmd-border: rgba(255, 255, 255, 0.12);
+  --cmd-text-primary: #f8fafc;
+  --cmd-text-secondary: #cbd5e1;
+  --cmd-text-muted: #94a3b8;
+  --cmd-accent: #10b981;
+  --cmd-accent-rgb: 16, 185, 129;
+  --cmd-accent-glow: rgba(16, 185, 129, 0.45);
+  --cmd-card-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.85);
+  --cmd-card-shadow-3d: 0 25px 50px -12px rgba(16, 185, 129, 0.25);
+  --cmd-heartbeat-glow: rgba(52, 211, 153, 0.9);
+}
+
+/* Accessibility: Respect Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ============================================================
+   PHASE 39B: PULSING ONLINE STATUS ANIMATIONS & 3D STYLING
+   ============================================================ */
+
+/* Core live presence glowing dot */
+@keyframes presencePulseCore {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7), 0 0 8px 1px rgba(16, 185, 129, 0.8);
+  }
+  50% {
+    transform: scale(1.12);
+    opacity: 0.9;
+    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.3), 0 0 14px 2px rgba(16, 185, 129, 0.9);
+  }
+}
+
+/* Concentric ripple wave 1 */
+@keyframes presenceSonarRing1 {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.9;
+  }
+  70% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(2.6);
+    opacity: 0;
+  }
+}
+
+/* Concentric ripple wave 2 */
+@keyframes presenceSonarRing2 {
+  0% {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+  30% {
+    transform: scale(1.3);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(3.2);
+    opacity: 0;
+  }
+}
+
+.presence-pulse-dot {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.presence-pulse-dot::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 9999px;
+  background-color: rgba(16, 185, 129, 0.5);
+  animation: presenceSonarRing1 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+  pointer-events: none;
+}
+
+.presence-pulse-dot::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 9999px;
+  background-color: rgba(16, 185, 129, 0.3);
+  animation: presenceSonarRing2 2s cubic-bezier(0, 0, 0.2, 1) 0.5s infinite;
+  pointer-events: none;
+}
+
+.presence-pulse-core {
+  animation: presencePulseCore 2s ease-in-out infinite;
+}
+
+/* Emergency Beacon Pulsing Animation */
+@keyframes emergencyHazardPulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.8), 0 0 20px rgba(239, 68, 68, 0.5);
+  }
+  50% {
+    transform: scale(1.03);
+    box-shadow: 0 0 0 10px rgba(239, 68, 68, 0.2), 0 0 35px rgba(239, 68, 68, 0.8);
+  }
+}
+
+.emergency-hazard-glow {
+  animation: emergencyHazardPulse 1.4s ease-in-out infinite;
+}
+
+/* 3D Perspective Card Tilt Effects */
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+.transform-style-3d {
+  transform-style: preserve-3d;
+}
+
+.backface-hidden {
+  backface-visibility: hidden;
+}
+
+/* Instagram Story Gradient Ring Animation */
+@keyframes igStoryRotate {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.ig-story-ring {
+  background: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
+  background-size: 200% 200%;
+  animation: igStoryRotate 4s ease infinite;
+}
+
+.ig-story-ring-live {
+  background: linear-gradient(45deg, #10b981 0%, #059669 30%, #3b82f6 70%, #10b981 100%);
+  background-size: 200% 200%;
+  animation: igStoryRotate 3s ease infinite;
+}
+
+/* Floating 3D Hover Effect */
+@keyframes float3d {
+  0%, 100% {
+    transform: translateY(0px) rotateX(0deg);
+  }
+  50% {
+    transform: translateY(-6px) rotateX(2deg);
+  }
+}
+
+.float-3d-card {
+  animation: float3d 5s ease-in-out infinite;
+}
+
+
+

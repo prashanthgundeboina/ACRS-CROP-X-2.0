@@ -1,0 +1,46 @@
+services:
+  - type: web
+    name: croperx
+    runtime: node
+    plan: starter
+    region: oregon
+    buildCommand: npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_VERIFY_SERVICE_SID
+        sync: false
+      - key: ADMIN_BOOTSTRAP_MOBILE
+        value: "00110099"
+      - key: ADMIN_BOOTSTRAP_PASSWORD
+        value: "Admin@2821"
+      - key: CROPERX_DEMO_ADMIN_MOBILE
+        value: "00110099"
+      - key: CROPERX_DEMO_ADMIN_PASSWORD
+        value: "ADMIN@2821"
+      - key: PUBLIC_APP_URL
+        sync: false
+      - key: DATA_DIR
+        value: /var/data
+    disk:
+      name: croperx-data
+      mountPath: /var/data
+      sizeGB: 1
+
