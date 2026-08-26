@@ -3215,7 +3215,7 @@ app.post("/api/adviser/calls/request", (req, res) => {
       cameraSessionsMap.set(newCall.sessionId, {
         sessionId: newCall.sessionId,
         token,
-        pin: "123456",
+        pin: Math.floor(100000 + crypto.randomInt(0, 900000)).toString(),
         state: "CREATED",
         createdAt: now,
         expiresAt: now + 30 * 60 * 1000,
