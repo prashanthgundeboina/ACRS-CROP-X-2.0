@@ -16,6 +16,7 @@ import {
   verifyAuthOtp,
   validatePhoneNumber
 } from '../../services/authService';
+import { AdviserOnboardingGateway } from '../adviser/AdviserOnboardingGateway';
 
 interface UnifiedAuthGatewayModalProps {
   isOpen: boolean;
@@ -82,6 +83,9 @@ export const UnifiedAuthGatewayModal: React.FC<UnifiedAuthGatewayModalProps> = (
   const [resetNewPassword, setResetNewPassword] = useState('');
   const [showResetPassword, setShowResetPassword] = useState(false);
   const [resetStep, setResetStep] = useState<1 | 2>(1);
+
+  // Adviser Onboarding Gateway Modal State (Phase 43)
+  const [showAdviserOnboarding, setShowAdviserOnboarding] = useState(false);
 
   // Status & Feedback
   const [loading, setLoading] = useState(false);
@@ -453,6 +457,18 @@ export const UnifiedAuthGatewayModal: React.FC<UnifiedAuthGatewayModalProps> = (
                   )}
                 </button>
               </form>
+
+              {/* Adviser Verification & Onboarding Direct Trigger */}
+              <div className="pt-2 border-t border-slate-800 text-center">
+                <button
+                  type="button"
+                  onClick={() => setShowAdviserOnboarding(true)}
+                  className="inline-flex items-center gap-1.5 text-xs text-teal-400 hover:text-teal-300 font-semibold transition-colors"
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>Farm Adviser Applicant? Complete Assessment & Verification</span>
+                </button>
+              </div>
             </div>
           )}
 
@@ -799,6 +815,17 @@ export const UnifiedAuthGatewayModal: React.FC<UnifiedAuthGatewayModalProps> = (
                             />
                           </div>
                         </div>
+
+                        <div className="pt-2">
+                          <button
+                            type="button"
+                            onClick={() => setShowAdviserOnboarding(true)}
+                            className="w-full py-2.5 px-3 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all"
+                          >
+                            <ShieldCheck className="w-4 h-4" />
+                            <span>Start 50-Q Assessment & Onboarding Pipeline</span>
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -946,6 +973,21 @@ export const UnifiedAuthGatewayModal: React.FC<UnifiedAuthGatewayModalProps> = (
           )}
         </div>
       </motion.div>
+
+      {/* Adviser Verification & Onboarding Gateway (Phase 43) */}
+      <AnimatePresence>
+        {showAdviserOnboarding && (
+          <AdviserOnboardingGateway
+            initialMobile={loginPhone || regPhone}
+            onClose={() => setShowAdviserOnboarding(false)}
+            onEnterWorkstation={(user) => {
+              setShowAdviserOnboarding(false);
+              onAuthSuccess(user, 'farmer_adviser');
+              onClose();
+            }}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 };

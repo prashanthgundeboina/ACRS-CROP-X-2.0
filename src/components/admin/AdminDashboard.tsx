@@ -22,6 +22,7 @@ import {
 import { GlobalAccountMenu } from '../account/GlobalAccountMenu';
 import { AdminHomeMediaManager } from './AdminHomeMediaManager';
 import { AdminLivePresenceManager } from './AdminLivePresenceManager';
+import { AdviserVerificationAdminView } from './AdviserVerificationAdminView';
 
 interface AdminDashboardProps {
   currentUser: UserAccount | null;
@@ -34,6 +35,7 @@ interface AdminDashboardProps {
 
 type AdminTab =
   | 'overview'
+  | 'adviser_verification'
   | 'home_cms'
   | 'live_presence'
   | 'farmers'
@@ -128,6 +130,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   // Nav Items
   const navItems: { id: AdminTab; label: string; icon: any; count?: number }[] = [
     { id: 'overview', label: 'Overview', icon: BarChart3 },
+    { id: 'adviser_verification', label: 'Adviser Verification', icon: ShieldCheck },
     { id: 'live_presence', label: 'Live Presence & SOS', icon: Radio },
     { id: 'home_cms', label: 'Home Page CMS', icon: Globe },
     { id: 'farmers', label: 'Farmers', icon: Users, count: farmers.length },
@@ -984,6 +987,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
               </div>
             </div>
+          )}
+
+          {/* TAB: ADVISER VERIFICATION & ONBOARDING (PHASE 43) */}
+          {activeTab === 'adviser_verification' && (
+            <AdviserVerificationAdminView currentUser={currentUser} />
           )}
 
           {/* TAB: LIVE PRESENCE & EMERGENCY NETWORK */}

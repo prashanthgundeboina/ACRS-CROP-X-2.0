@@ -124,6 +124,10 @@ import { GlobalAccountMenu } from './components/account/GlobalAccountMenu';
 import { logoutAllUserSessions } from './services/profileSettingsService';
 import { PublicHomePage } from './components/home/PublicHomePage';
 import { UnifiedAuthGatewayModal } from './components/auth/UnifiedAuthGatewayModal';
+import { AdviserOnboardingGateway } from './components/adviser/AdviserOnboardingGateway';
+import { AdviserLearningGateway } from './components/adviser/AdviserLearningGateway';
+import { AdviserVerificationGateway } from './components/adviser/AdviserVerificationGateway';
+import { AdviserActivationModal } from './components/adviser/AdviserActivationModal';
 import {
   updateAppTitleAndRoute,
   openRoleWorkspaceTab,
@@ -431,8 +435,25 @@ function AppContent() {
   const [showCropMissionModal, setShowCropMissionModal] = useState<boolean>(false);
   const [showRoleModal, setShowRoleModal] = useState<boolean>(false);
   const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
+  const [showAdviserLearningGateway, setShowAdviserLearningGateway] = useState<boolean>(false);
+  const [showAdviserOnboardingModal, setShowAdviserOnboardingModal] = useState<boolean>(false);
+  const [showAdviserVerificationGateway, setShowAdviserVerificationGateway] = useState<boolean>(false);
+  const [showAdviserActivationModal, setShowAdviserActivationModal] = useState<boolean>(false);
+  const [adviserActivationToken, setAdviserActivationToken] = useState<string>('');
   const [geoDetectLoading, setGeoDetectLoading] = useState<boolean>(false);
   const [geoStatusMsg, setGeoStatusMsg] = useState<string | null>(null);
+
+  // Check URL search params for activation token on load (Phase 43)
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get('activation_token') || params.get('token');
+      if (token) {
+        setAdviserActivationToken(token);
+        setShowAdviserActivationModal(true);
+      }
+    }
+  }, []);
 
   // Authoritative Backend Session Verification on Mount (Phase 36B)
   React.useEffect(() => {
@@ -1014,7 +1035,41 @@ function AppContent() {
           }}
           onOpenProfile={() => setShowProfileModal(true)}
           onLogout={() => setShowLogoutModal(true)}
+          onOpenAdviserVerification={() => setShowAdviserVerificationGateway(true)}
+          onOpenAdviserActivation={() => setShowAdviserActivationModal(true)}
         />
+
+        {/* Phase 43: Adviser Verification & Assessment Gateway Modal */}
+        <AnimatePresence>
+          {showAdviserVerificationGateway && (
+            <AdviserVerificationGateway
+              onClose={() => setShowAdviserVerificationGateway(false)}
+              onOpenActivation={(tok) => {
+                setShowAdviserVerificationGateway(false);
+                if (tok) setAdviserActivationToken(tok);
+                setShowAdviserActivationModal(true);
+              }}
+            />
+          )}
+        </AnimatePresence>
+
+        {/* Phase 43: Adviser Activation Modal (Single-use Token Password Setup) */}
+        <AnimatePresence>
+          {showAdviserActivationModal && (
+            <AdviserActivationModal
+              initialToken={adviserActivationToken}
+              onClose={() => setShowAdviserActivationModal(false)}
+              onSuccess={(user, token) => {
+                setCurrentUser(user);
+                setUserRole('farmer_adviser');
+                setCurrentView('farmer_adviser');
+                localStorage.setItem('croperx_user_role', 'farmer_adviser');
+                broadcastAuthEvent({ type: 'LOGIN', role: 'farmer_adviser' });
+                setShowAdviserActivationModal(false);
+              }}
+            />
+          )}
+        </AnimatePresence>
 
         {/* Phase 30: Unified Authentication Gateway Modal */}
         <UnifiedAuthGatewayModal
@@ -1367,6 +1422,26 @@ function AppContent() {
     );
   }
 
+  // Dedicated Adviser Learning Gateway Mode (Phase 43: Requires completion of 12 modules & mastery exam before live workstation access)
+  if (
+    ((currentUser?.role === 'farmer_adviser' || userRole === 'farmer_adviser') && currentView === 'farmer_adviser') &&
+    ((currentUser?.accountStatus as any) === 'learning_required' || (currentUser as any)?.learningCompleted === false)
+  ) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 font-sans">
+        <AdviserLearningGateway
+          currentUser={currentUser}
+          onCourseCompleted={(updatedUser) => {
+            if (currentUser) {
+              setCurrentUser({ ...currentUser, ...updatedUser, accountStatus: 'active' });
+            }
+          }}
+          onLogout={() => handleConfirmLogout(false)}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#f8fcf8] text-[#1b2e1b] flex flex-col font-sans">
       {/* Security Alert Toast */}
@@ -1634,8 +1709,18 @@ function AppContent() {
               </div>
             </div>
 
-            {/* Global Account Menu for Adviser */}
+            {/* Global Account Menu & Gateway Links for Adviser */}
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowAdviserLearningGateway(true)}
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 text-xs font-bold transition-all shadow-xs"
+                title="Open 12-Module Agronomy Learning & Mastery Gateway"
+              >
+                <BookOpen className="w-3.5 h-3.5 text-teal-600" />
+                <span>Learning Gateway</span>
+              </button>
+
               <GlobalAccountMenu
                 currentUser={currentUser}
                 currentRole="farmer_adviser"
@@ -3413,6 +3498,35 @@ function AppContent() {
         }}
         canDismiss={true}
       />
+
+      {/* Adviser Learning & Mastery Gateway (Phase 43) */}
+      {showAdviserLearningGateway && (
+        <AdviserLearningGateway
+          currentUser={currentUser}
+          onCourseCompleted={(updatedUser) => {
+            if (currentUser) {
+              setCurrentUser({ ...currentUser, ...updatedUser, accountStatus: 'active' });
+            }
+            setShowAdviserLearningGateway(false);
+          }}
+          onLogout={() => {
+            setShowAdviserLearningGateway(false);
+            handleConfirmLogout(false);
+          }}
+        />
+      )}
+
+      {/* Adviser Onboarding & Verification Gateway (Phase 43) */}
+      {showAdviserOnboardingModal && (
+        <AdviserOnboardingGateway
+          initialMobile={currentUser?.phoneNumber || ''}
+          onClose={() => setShowAdviserOnboardingModal(false)}
+          onEnterWorkstation={(user) => {
+            setShowAdviserOnboardingModal(false);
+            setCurrentUser(user);
+          }}
+        />
+      )}
 
     </div>
   );

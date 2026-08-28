@@ -130,7 +130,9 @@ export interface UserAccount {
   farmerGpsPermission?: 'granted' | 'prompt' | 'denied' | 'unknown';
   consultationLocation?: AdviserConsultationLocation;
   liveLocation?: AdviserLiveLocation;
-  accountStatus?: 'Active' | 'Under Review' | 'Suspended' | 'Deleted' | 'active' | 'suspended' | 'pending' | 'deleted';
+  isVerified?: boolean;
+  learningCompleted?: boolean;
+  accountStatus?: 'Active' | 'Under Review' | 'Suspended' | 'Deleted' | 'active' | 'suspended' | 'pending' | 'deleted' | 'learning_required' | 'under_review';
   lastLogin?: string;
   lastLoginAt?: string;
   securityStatus?: string;
@@ -248,6 +250,134 @@ export interface FarmerChatbotResponse {
   timing: string;
   audioText?: string;
 }
+
+// ============================================================
+// PHASE 43: ADVISER ONBOARDING, ASSESSMENT & LEARNING GATEWAY
+// ============================================================
+
+export type AdviserApplicationStatus =
+  | 'REGISTERED'
+  | 'OTP_REQUIRED'
+  | 'OTP_VERIFIED'
+  | 'ASSESSMENT_REQUIRED'
+  | 'ASSESSMENT_IN_PROGRESS'
+  | 'NOT_ELIGIBLE'
+  | 'PENDING_ADMIN_REVIEW'
+  | 'UNDER_REVIEW'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'ACTIVATION_REQUIRED'
+  | 'PASSWORD_SETUP_REQUIRED'
+  | 'LEARNING_REQUIRED'
+  | 'MASTERY_REQUIRED'
+  | 'ACTIVE';
+
+export interface AdviserApplication {
+  id: string;
+  userId?: string;
+  mobile: string;
+  fullName: string;
+  email?: string;
+  specialization: string;
+  experienceYears: number;
+  qualification: string;
+  primaryCrops: string[];
+  languages: string[];
+  region: string;
+  institution?: string;
+  certificationInfo?: string;
+  status: AdviserApplicationStatus;
+  assessmentScore?: number;
+  assessmentPercentage?: number;
+  assessmentVersion?: string;
+  assessmentSubmittedAt?: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
+  rejectionReason?: string;
+  activationTokenHashed?: string;
+  activationExpiresAt?: string;
+  passwordSetupCompleted?: boolean;
+  courseCompleted?: boolean;
+  masteryTestPassed?: boolean;
+  masteryScore?: number;
+  assessmentPassed?: boolean;
+  categoryScores?: Record<string, number>;
+  yearsOfExperience?: number;
+  isVerified?: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdviserAssessmentQuestion {
+  id: number;
+  category: 'agriculture' | 'soil' | 'crop_health' | 'climate' | 'agronomy' | 'croperx';
+  categoryLabel: string;
+  question: string;
+  options: string[];
+}
+
+export interface AdviserAssessmentResult {
+  score: number;
+  maxScore: number;
+  percentage: number;
+  status: AdviserApplicationStatus;
+  isEligible: boolean;
+  passed: boolean;
+  submittedAt: string;
+  message: string;
+}
+
+export interface AdviserCourseModule {
+  id: number;
+  title: string;
+  subtitle: string;
+  category: string;
+  badge: string;
+  durationMinutes: number;
+  estimatedDuration?: string;
+  icon: string;
+  overview: string;
+  coreConcepts: string[];
+  operationalProtocols: string[];
+  farmerImpactNotes: string[];
+  quizQuestion: {
+    question: string;
+    options: string[];
+    correctIndex: number;
+    correctOptionIndex?: number;
+    explanation: string;
+  };
+}
+
+export interface AdviserCourseProgress {
+  mobile: string;
+  userId?: string;
+  completedModules: number[];
+  currentModule: number;
+  courseCompleted: boolean;
+  masteryTestPassed: boolean;
+  masteryScore?: number;
+  updatedAt: string;
+}
+
+export interface AdviserMasteryQuestion {
+  id: number;
+  moduleNumber: number;
+  moduleTitle: string;
+  question: string;
+  options: string[];
+}
+
+export interface AdviserMasteryResult {
+  score: number;
+  maxScore: number;
+  percentage: number;
+  passed: boolean;
+  feedback: string;
+  weakModules?: number[];
+  unlockedDashboard: boolean;
+}
+
 
 export interface AdminFarmerRecord {
   id: string;

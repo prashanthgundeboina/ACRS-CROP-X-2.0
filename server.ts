@@ -15,6 +15,23 @@ import {
   supabaseRecordAuditLog
 } from "./server/supabase.js";
 import { getSessionSecret, validateSessionConfiguration, generateSignedSessionToken, verifySignedSessionToken } from "./server/session.js";
+import {
+  ASSESSMENT_QUESTIONS,
+  COURSE_MODULES,
+  MASTERY_QUESTIONS,
+  getAdviserApplicationsDB,
+  saveAdviserApplicationsDB,
+  registerAdviserApplication as registerAdviserVerification,
+  markAdviserOtpVerified,
+  evaluateAndSubmitAssessment,
+  adminApproveApplication,
+  adminRejectApplication,
+  verifyActivationToken,
+  markTokenUsed,
+  getAdviserProgress,
+  saveAdviserProgress,
+  evaluateMasteryAssessment
+} from "./server/adviserVerification.js";
 
 dotenv.config();
 
@@ -510,6 +527,21 @@ app.post("/api/market-insights", async (req, res) => {
 import fs from "fs";
 import crypto from "crypto";
 import twilio from "twilio";
+import { ADVISER_ASSESSMENT_PUBLIC_QUESTIONS } from "./src/data/adviserAssessmentData";
+import { ADVISER_LEARNING_MODULES } from "./src/data/adviserLearningModules";
+import { ADVISER_MASTERY_QUESTIONS } from "./server/adviserMasteryTestMaster";
+import {
+  registerAdviserApplication as registerWorkflowApp,
+  getAdviserApplication,
+  getAdviserApplications,
+  submitAssessmentAnswers,
+  reviewAdviserApplication,
+  activateAdviserPassword,
+  getCourseProgress,
+  updateCourseProgress,
+  submitMasteryAnswers,
+  checkAdviserDashboardGuard
+} from "./server/adviserWorkflowService";
 
 const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), "data");
 const USERS_FILE = path.join(DATA_DIR, "users_db.json");
@@ -1582,6 +1614,371 @@ app.post("/api/auth/settings", (req, res) => {
     res.json({ success: true, settings: db[cleanPhone] });
   } catch (error: any) {
     res.status(500).json({ error: "Failed to save settings." });
+  }
+});
+
+// ============================================================
+// PHASE 43: ADVISER ONBOARDING, VERIFICATION & LEARNING GATEWAY
+// ============================================================
+
+// 1. Get 50 Assessment Questions (Sanitized - Without Answers)
+app.get("/api/adviser/assessment/questions", (req, res) => {
+  try {
+    res.json({
+      success: true,
+      total: ADVISER_ASSESSMENT_PUBLIC_QUESTIONS.length,
+      passingThreshold: 25,
+      questions: ADVISER_ASSESSMENT_PUBLIC_QUESTIONS
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to fetch assessment questions." });
+  }
+});
+
+// 2. Submit 50 Assessment Answers (Authoritative Server-Side Scoring)
+app.post("/api/adviser/assessment/submit", async (req, res) => {
+  try {
+    const { mobileNumber, phoneNumber, answers } = req.body;
+    const rawMobile = mobileNumber || phoneNumber;
+    if (!rawMobile || !answers || typeof answers !== "object") {
+      return res.status(400).json({ error: "Mobile number and assessment answers are required." });
+    }
+
+    const cleanPhone = normalizePhoneNumber(rawMobile);
+    const result = await submitAssessmentAnswers(cleanPhone, answers);
+
+    // Audit log
+    adminAuditLogs.unshift({
+      id: "log-" + Date.now(),
+      timestamp: new Date().toISOString(),
+      user: result.application.fullName || cleanPhone,
+      role: "farmer_adviser",
+      action: `Completed 50-Q Assessment (Score: ${result.scoring.score}/50, ${result.scoring.percentage}%)`,
+      target: `Application #${result.application.id}`,
+      ipAddress: req.ip || "127.0.0.1",
+      status: result.scoring.isEligible ? "Success" : "Warning"
+    });
+
+    res.json({
+      success: true,
+      score: result.scoring.score,
+      total: result.scoring.total,
+      percentage: result.scoring.percentage,
+      isEligible: result.scoring.isEligible,
+      status: result.scoring.status,
+      title: result.scoring.title,
+      message: result.scoring.message,
+      categoryBreakdown: result.scoring.categoryBreakdown,
+      application: result.application
+    });
+  } catch (err: any) {
+    console.error("Assessment submit error:", err);
+    res.status(500).json({ error: err.message || "Failed to score assessment." });
+  }
+});
+
+// 3. Register Adviser Applicant Details
+app.post("/api/adviser/register", async (req, res) => {
+  try {
+    const {
+      mobileNumber,
+      phoneNumber,
+      fullName,
+      email,
+      specialization,
+      yearsOfExperience,
+      qualification,
+      institution,
+      primaryCrops,
+      secondaryCrops,
+      languages,
+      region,
+      district,
+      state
+    } = req.body;
+
+    const rawMobile = mobileNumber || phoneNumber;
+    if (!rawMobile || !fullName) {
+      return res.status(400).json({ error: "Mobile number and full name are required." });
+    }
+
+    const cleanPhone = normalizePhoneNumber(rawMobile);
+    const application = await registerWorkflowApp({
+      mobile: cleanPhone,
+      fullName,
+      email,
+      specialization,
+      yearsOfExperience: Number(yearsOfExperience),
+      qualification,
+      institution,
+      primaryCrops,
+      secondaryCrops,
+      languages,
+      region,
+      district,
+      state
+    });
+
+    adminAuditLogs.unshift({
+      id: "log-" + Date.now(),
+      timestamp: new Date().toISOString(),
+      user: fullName,
+      role: "farmer_adviser",
+      action: "Submitted Adviser Onboarding Application",
+      target: cleanPhone,
+      ipAddress: req.ip || "127.0.0.1",
+      status: "Success"
+    });
+
+    res.json({ success: true, application });
+  } catch (err: any) {
+    console.error("Adviser register error:", err);
+    res.status(500).json({ error: err.message || "Failed to register adviser application." });
+  }
+});
+
+// 4. Query Adviser Application Status
+app.get("/api/adviser/application/status", async (req, res) => {
+  try {
+    const rawMobile = req.query.mobileNumber || req.query.phoneNumber || req.query.phone || req.headers["x-user-phone"];
+    if (!rawMobile) {
+      return res.status(400).json({ error: "Phone number is required to check application status." });
+    }
+    const cleanPhone = normalizePhoneNumber(String(rawMobile));
+    const appRecord = await getAdviserApplication(cleanPhone);
+
+    res.json({
+      success: true,
+      application: appRecord,
+      status: appRecord?.status || "NOT_REGISTERED"
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to fetch application status." });
+  }
+});
+
+// 5. Admin: List All Adviser Applications
+app.get("/api/admin/adviser/applications", (req, res) => {
+  try {
+    const appsMap = getAdviserApplications();
+    const appsList = Object.values(appsMap).sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+    res.json({ success: true, applications: appsList, count: appsList.length });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to list adviser applications." });
+  }
+});
+
+// 6. Admin: Approve or Reject Adviser Application
+app.post("/api/admin/adviser/review", async (req, res) => {
+  try {
+    const { applicationId, mobileNumber, action, reviewedBy, rejectionReason } = req.body;
+    const target = applicationId || mobileNumber;
+    if (!target || !action || (action !== "APPROVE" && action !== "REJECT")) {
+      return res.status(400).json({ error: "Target ID and valid action (APPROVE or REJECT) are required." });
+    }
+
+    const result = await reviewAdviserApplication(
+      target,
+      action,
+      reviewedBy || "Admin",
+      rejectionReason
+    );
+
+    adminAuditLogs.unshift({
+      id: "log-" + Date.now(),
+      timestamp: new Date().toISOString(),
+      user: reviewedBy || "Admin",
+      role: "admin",
+      action: action === "APPROVE" ? "Approved Adviser Verification" : "Rejected Adviser Application",
+      target: result.application.fullName + ` (${result.application.mobile})`,
+      ipAddress: req.ip || "127.0.0.1",
+      status: action === "APPROVE" ? "Success" : "Warning"
+    });
+
+    res.json(result);
+  } catch (err: any) {
+    console.error("Admin review error:", err);
+    res.status(500).json({ error: err.message || "Failed to review application." });
+  }
+});
+
+// RESTful Approval & Rejection Endpoints for Admin Manager
+app.post("/api/admin/adviser/applications/:id/approve", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const reviewedBy = req.body.reviewedBy || "Admin";
+    const result = await reviewAdviserApplication(id, "APPROVE", reviewedBy);
+    
+    adminAuditLogs.unshift({
+      id: "log-" + Date.now(),
+      timestamp: new Date().toISOString(),
+      user: reviewedBy,
+      role: "admin",
+      action: "Approved Adviser Verification",
+      target: result.application.fullName + ` (${result.application.mobile})`,
+      ipAddress: req.ip || "127.0.0.1",
+      status: "Success"
+    });
+
+    res.json({
+      success: true,
+      activationToken: result.activationToken,
+      expiresAt: new Date(Date.now() + 48 * 3600 * 1000).toISOString(),
+      application: result.application
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Approval failed." });
+  }
+});
+
+app.post("/api/admin/adviser/applications/:id/reject", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason, reviewedBy } = req.body;
+    const result = await reviewAdviserApplication(id, "REJECT", reviewedBy || "Admin", reason);
+
+    adminAuditLogs.unshift({
+      id: "log-" + Date.now(),
+      timestamp: new Date().toISOString(),
+      user: reviewedBy || "Admin",
+      role: "admin",
+      action: "Rejected Adviser Application",
+      target: result.application.fullName + ` (${result.application.mobile})`,
+      ipAddress: req.ip || "127.0.0.1",
+      status: "Warning"
+    });
+
+    res.json({ success: true, application: result.application });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Rejection failed." });
+  }
+});
+
+// 7. Adviser: Activate Account & Setup Secure Password
+app.post("/api/adviser/activate", async (req, res) => {
+  try {
+    const { mobileNumber, phoneNumber, token, newPassword } = req.body;
+    const identifier = token || mobileNumber || phoneNumber;
+    if (!identifier || !newPassword) {
+      return res.status(400).json({ error: "Identifier and new password are required." });
+    }
+
+    const result = await activateAdviserPassword(identifier, newPassword);
+
+    adminAuditLogs.unshift({
+      id: "log-" + Date.now(),
+      timestamp: new Date().toISOString(),
+      user: result.application.fullName,
+      role: "farmer_adviser",
+      action: "Completed Secure Adviser Activation & Password Setup",
+      target: result.application.mobile,
+      ipAddress: req.ip || "127.0.0.1",
+      status: "Success"
+    });
+
+    res.json(result);
+  } catch (err: any) {
+    console.error("Adviser activate error:", err);
+    res.status(500).json({ error: err.message || "Failed to activate adviser account." });
+  }
+});
+
+// 8. Adviser Learning Gateway: Get 12 Modules
+app.get("/api/adviser/course/modules", (req, res) => {
+  try {
+    res.json({ success: true, count: ADVISER_LEARNING_MODULES.length, modules: ADVISER_LEARNING_MODULES });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to fetch course modules." });
+  }
+});
+
+// 9. Adviser Learning Gateway: Get Course Progress
+app.get("/api/adviser/course/progress", async (req, res) => {
+  try {
+    const rawMobile = req.query.mobileNumber || req.query.phoneNumber || req.query.phone || req.headers["x-user-phone"];
+    if (!rawMobile) {
+      return res.status(400).json({ error: "Mobile number required for course progress." });
+    }
+    const cleanPhone = normalizePhoneNumber(String(rawMobile));
+    const progress = await getCourseProgress(cleanPhone);
+    res.json({ success: true, progress });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to fetch course progress." });
+  }
+});
+
+// 10. Adviser Learning Gateway: Update Module Progress
+app.post("/api/adviser/course/progress", async (req, res) => {
+  try {
+    const { mobileNumber, phoneNumber, moduleId, completed } = req.body;
+    const rawMobile = mobileNumber || phoneNumber;
+    if (!rawMobile || !moduleId) {
+      return res.status(400).json({ error: "Mobile number and moduleId required." });
+    }
+    const cleanPhone = normalizePhoneNumber(rawMobile);
+    const progress = await updateCourseProgress(cleanPhone, moduleId, completed !== false);
+    res.json({ success: true, progress });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to update course progress." });
+  }
+});
+
+// 11. Adviser Mastery Test: Get 15 Questions
+app.get("/api/adviser/mastery/questions", (req, res) => {
+  try {
+    res.json({
+      success: true,
+      total: ADVISER_MASTERY_QUESTIONS.length,
+      passingThreshold: 12,
+      questions: ADVISER_MASTERY_QUESTIONS
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to fetch mastery questions." });
+  }
+});
+
+// 12. Adviser Mastery Test: Submit & Score Server-Side
+app.post("/api/adviser/mastery/submit", async (req, res) => {
+  try {
+    const { mobileNumber, phoneNumber, answers } = req.body;
+    const rawMobile = mobileNumber || phoneNumber;
+    if (!rawMobile || !answers) {
+      return res.status(400).json({ error: "Mobile number and answers required." });
+    }
+    const cleanPhone = normalizePhoneNumber(rawMobile);
+    const result = await submitMasteryAnswers(cleanPhone, answers);
+
+    adminAuditLogs.unshift({
+      id: "log-" + Date.now(),
+      timestamp: new Date().toISOString(),
+      user: result.application.fullName || cleanPhone,
+      role: "farmer_adviser",
+      action: `Completed Final Mastery Assessment (${result.score}/${result.total}, ${result.percentage}%) - ${result.passed ? "PASSED" : "FAILED"}`,
+      target: `Application #${result.application.id}`,
+      ipAddress: req.ip || "127.0.0.1",
+      status: result.passed ? "Success" : "Warning"
+    });
+
+    res.json({ success: true, ...result });
+  } catch (err: any) {
+    console.error("Mastery submit error:", err);
+    res.status(500).json({ error: err.message || "Failed to submit mastery test." });
+  }
+});
+
+// 13. Adviser Dashboard Access Guard
+app.get("/api/adviser/dashboard-guard", async (req, res) => {
+  try {
+    const rawMobile = req.query.mobileNumber || req.query.phoneNumber || req.query.phone || req.headers["x-user-phone"];
+    const userRole = req.query.role || req.headers["x-user-role"];
+    const cleanPhone = rawMobile ? normalizePhoneNumber(String(rawMobile)) : undefined;
+
+    const guard = await checkAdviserDashboardGuard(cleanPhone, String(userRole || ""));
+    res.json({ success: true, ...guard });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to evaluate dashboard guard." });
   }
 });
 

@@ -20,6 +20,8 @@ interface PublicHomePageProps {
   onOpenDashboard: (role?: UserRole) => void;
   onOpenProfile: () => void;
   onLogout: () => void;
+  onOpenAdviserVerification?: () => void;
+  onOpenAdviserActivation?: () => void;
 }
 
 export const PublicHomePage: React.FC<PublicHomePageProps> = ({
@@ -28,7 +30,9 @@ export const PublicHomePage: React.FC<PublicHomePageProps> = ({
   onOpenRegister,
   onOpenDashboard,
   onOpenProfile,
-  onLogout
+  onLogout,
+  onOpenAdviserVerification,
+  onOpenAdviserActivation
 }) => {
   const { language, setLanguage } = useLanguage();
   const [homeConfig, setHomeConfig] = useState<HomePageConfig | null>(null);
@@ -790,17 +794,39 @@ export const PublicHomePage: React.FC<PublicHomePageProps> = ({
               </ul>
             </div>
 
-            <button
-              id="role-btn-adviser"
-              onClick={() => {
-                if (currentUser && (userRole === 'farmer_adviser' || userRole === 'admin')) onOpenDashboard('farmer_adviser');
-                else onOpenRegister('farmer_adviser');
-              }}
-              className="w-full py-4 rounded-2xl bg-teal-600 hover:bg-teal-500 text-slate-950 font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-teal-950/50 transition-all cursor-pointer"
-            >
-              <span>{currentUser && userRole === 'farmer_adviser' ? "Open Adviser Workstation" : "I'm a Farm Adviser"}</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
+            <div className="space-y-2 pt-2">
+              <button
+                id="role-btn-adviser"
+                onClick={() => {
+                  if (currentUser && (userRole === 'farmer_adviser' || userRole === 'admin')) onOpenDashboard('farmer_adviser');
+                  else onOpenRegister('farmer_adviser');
+                }}
+                className="w-full py-3.5 rounded-2xl bg-teal-500 hover:bg-teal-400 text-slate-950 font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-teal-950/50 transition-all cursor-pointer"
+              >
+                <span>{currentUser && userRole === 'farmer_adviser' ? "Open Adviser Workstation" : "I'm a Farm Adviser"}</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+
+              {onOpenAdviserVerification && (
+                <button
+                  type="button"
+                  onClick={onOpenAdviserVerification}
+                  className="w-full py-2.5 rounded-xl bg-teal-950/80 hover:bg-teal-900 border border-teal-500/40 text-teal-300 font-bold text-[11px] flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                >
+                  <span>📋 Adviser Verification & Assessment Gateway</span>
+                </button>
+              )}
+
+              {onOpenAdviserActivation && (
+                <button
+                  type="button"
+                  onClick={onOpenAdviserActivation}
+                  className="w-full py-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-700/60 text-slate-300 hover:text-white font-semibold text-[10px] flex items-center justify-center gap-1 transition-all cursor-pointer"
+                >
+                  <span>🔑 Have an Activation Token? Set Password</span>
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Card 3: Administrator */}
