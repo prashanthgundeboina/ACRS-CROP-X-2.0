@@ -63,7 +63,46 @@ export const AdviserAssessmentView: React.FC<AdviserAssessmentViewProps> = ({
       .catch(err => {
         console.warn('Could not fetch assessment questions from API, using fallback:', err);
       });
-  }, []);
+
+    // Proctoring & Security Event Listeners
+    const handleVisibilityChange = () => {
+      if (document.hidden && mobileNumber) {
+        fetch('/api/adviser/assessment/security-event', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mobile: mobileNumber,
+            eventType: 'TAB_SWITCH_DETECTED',
+            severity: 'MEDIUM',
+            metadata: { timestamp: new Date().toISOString(), action: 'Candidate switched tabs or minimized window' }
+          })
+        }).catch(() => {});
+      }
+    };
+
+    const handleCopyAttempt = () => {
+      if (mobileNumber) {
+        fetch('/api/adviser/assessment/security-event', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mobile: mobileNumber,
+            eventType: 'CLIPBOARD_COPY_ATTEMPT',
+            severity: 'LOW',
+            metadata: { timestamp: new Date().toISOString(), action: 'Assessment text copy attempted' }
+          })
+        }).catch(() => {});
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener('copy', handleCopyAttempt);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.removeEventListener('copy', handleCopyAttempt);
+    };
+  }, [mobileNumber]);
 
   const categories = [
     'All',

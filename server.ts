@@ -30,8 +30,59 @@ import {
   markTokenUsed,
   getAdviserProgress,
   saveAdviserProgress,
-  evaluateMasteryAssessment
+  evaluateMasteryAssessment,
+  recordSecurityEvent,
+  getSecurityEvents
 } from "./server/adviserVerification.js";
+import {
+  getCatalogProducts,
+  getProductById,
+  getFarmerCart,
+  addToCart,
+  updateCartItemQuantity,
+  clearCart,
+  createFarmerOrder,
+  getFarmerOrders,
+  getOrderDetails,
+  AGRI_CATEGORIES,
+  getAllProductsAdmin,
+  createProductAdmin,
+  updateProductAdmin,
+  archiveProductAdmin,
+  restoreProductAdmin,
+  duplicateProductAdmin,
+  deleteProductAdmin,
+  getAllCategoriesAdmin,
+  createCategoryAdmin,
+  updateCategoryAdmin,
+  archiveCategoryAdmin,
+  restoreCategoryAdmin,
+  adjustInventoryAdmin,
+  getInventoryTransactions,
+  getAllOrdersAdmin,
+  updateOrderStatusAdmin,
+  getAdminNotifications,
+  createAdminNotification,
+  sendAdminNotification,
+  deleteAdminNotification,
+  getUserNotificationsFeed,
+  getAdminAlerts,
+  createAdminAlert,
+  getAdminCommerceAnalytics,
+  getAiProductRecommendations,
+  getAiProductSearch,
+  getAdminAiInsights,
+  syncStoreWithSupabase
+} from "./server/agriStore.js";
+
+declare global {
+  namespace Express {
+    interface Request {
+      adminUser?: any;
+      adminName?: string;
+    }
+  }
+}
 
 dotenv.config();
 
@@ -781,6 +832,26 @@ function writeUsersDB(db: Record<string, any>) {
   ensureDataDir();
   fs.writeFileSync(USERS_FILE, JSON.stringify(db, null, 2), "utf-8");
 }
+
+// In-memory / Global audit log store for Admin management
+interface AdminAuditLogEntry {
+  id: string;
+  timestamp: string;
+  user: string;
+  role: string;
+  action: string;
+  target: string;
+  ipAddress: string;
+  status: string;
+}
+
+const adminAuditLogs: AdminAuditLogEntry[] = [
+  { id: "log-1", timestamp: new Date(Date.now() - 1000 * 60 * 3).toISOString(), user: "Admin (Chief Operations)", role: "admin", action: "System Health Verification", target: "Global Telemetry Ingress", ipAddress: "192.168.1.10", status: "Success" },
+  { id: "log-2", timestamp: new Date(Date.now() - 1000 * 60 * 12).toISOString(), user: "Dr. Anand Sharma", role: "farmer_adviser", action: "Completed Video Advisory Session", target: "Call #call-98214 (Ramesh Kumar)", ipAddress: "10.0.4.52", status: "Success" },
+  { id: "log-3", timestamp: new Date(Date.now() - 1000 * 60 * 25).toISOString(), user: "Ramesh Kumar", role: "farmer", action: "Camera Crop Scan & Diagnostic", target: "North Field Zone A", ipAddress: "172.16.8.9", status: "Success" },
+  { id: "log-4", timestamp: new Date(Date.now() - 1000 * 60 * 45).toISOString(), user: "Admin (Chief Operations)", role: "admin", action: "Assigned Adviser to District", target: "Adviser Bureau Punjab", ipAddress: "192.168.1.10", status: "Success" },
+  { id: "log-5", timestamp: new Date(Date.now() - 1000 * 60 * 90).toISOString(), user: "System Telemetry Worker", role: "system", action: "Auto-calibrated Moisture Thresholds", target: "Sensor Node Z1-NPK-4", ipAddress: "127.0.0.1", status: "Success" },
+];
 
 // =========================================================================
 // Phase 37A: Real Twilio Verify OTP Provider Enforcement & Production Readiness
@@ -1757,6 +1828,143 @@ app.get("/api/adviser/application/status", async (req, res) => {
   }
 });
 
+// ============================================================
+// AUTHORITATIVE ADMIN USER DIRECTORY & ROLE SANITIZATION
+// ============================================================
+function sanitizeUserForAdmin(u: any) {
+  const { password: _, passwordHash: __, passwordSalt: ___, ...userSafe } = u;
+  const isAdviser = u.role === 'farmer_adviser';
+  const isCustomer = u.role === 'customer';
+  const isAdmin = u.role === 'admin';
+
+  return {
+    ...userSafe,
+    id: u.id || `usr_${u.phoneNumber}`,
+    name: u.fullName || u.farmerName || ("User " + (u.phoneNumber ? u.phoneNumber.slice(-4) : "")),
+    fullName: u.fullName || u.farmerName || ("User " + (u.phoneNumber ? u.phoneNumber.slice(-4) : "")),
+    phoneNumber: u.phoneNumber,
+    role: u.role || 'farmer',
+    accountStatus: u.accountStatus || 'active',
+    status: u.accountStatus === 'deleted' ? 'Deleted' : u.accountStatus === 'suspended' ? 'Suspended' : u.accountStatus === 'pending' ? 'Under Review' : isAdviser ? 'Available' : 'Active',
+    specialty: u.specialization || (isAdviser ? 'General Agronomy & Plant Health' : isCustomer ? (u.customerType || 'Crop Procurement') : 'Crop Cultivation'),
+    specialization: u.specialization || (isAdviser ? 'General Agronomy & Plant Health' : isCustomer ? (u.customerType || 'Crop Procurement') : 'Crop Cultivation'),
+    organization: u.organization || (isAdviser ? 'Agricultural Extension Network' : isCustomer ? 'Commercial Agro Buyer' : 'Independent Farm'),
+    licenseNumber: u.licenseNumber || null,
+    consultationHours: u.consultationHours || (isAdviser ? '08:00 AM - 06:00 PM IST' : null),
+    bio: u.bio || '',
+    customerType: u.customerType || (isCustomer ? 'Commercial Farm Buyer' : undefined),
+    customerNotes: u.customerNotes || '',
+    farmLocation: u.farmLocation || (u.district ? `${u.district}, ${u.state}` : isAdviser ? 'Regional Agronomy Center' : isCustomer ? 'Commodity Trading Hub' : 'Green Valley Farm'),
+    location: u.farmLocation || (u.district ? `${u.district}, ${u.state}` : isAdviser ? 'Regional Agronomy Center' : isCustomer ? 'Commodity Trading Hub' : 'Green Valley Farm'),
+    farmAreaSize: Number(u.farmAreaSize) || (isAdviser ? 50 : isCustomer ? 0 : 5),
+    assignedCrop: u.preferredCropCycle?.split('→')?.[0]?.trim() || (isCustomer ? "All Grains & Pulses" : "Kharif Rice"),
+    assignedAdviser: u.assignedAdviser || "Regional Agronomy Bureau",
+    assignedFarmersCount: u.assignedFarmersCount !== undefined ? u.assignedFarmersCount : (isAdviser ? 0 : undefined),
+    activeCallsToday: u.activeCallsToday !== undefined ? u.activeCallsToday : (isAdviser ? 0 : undefined),
+    rating: u.rating || 4.9,
+    soilHealthScore: u.soilHealthScore || Math.round((u.targetPhGoal || 6.5) * 12 + 10),
+    lastActive: u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Active recently",
+    locationSharingEnabled: u.locationSharingEnabled !== false,
+    farmerLocationState: u.farmerLocationState || null,
+    consultationLocation: u.consultationLocation || null,
+    createdAt: u.createdAt || new Date().toISOString(),
+    updatedAt: u.updatedAt || new Date().toISOString(),
+    lastLoginAt: u.lastLoginAt || null
+  };
+}
+
+// ============================================================
+// STRICT CRYPTOGRAPHIC ADMIN API AUTHORIZATION MIDDLEWARE
+// ============================================================
+const adminAuthorizationMiddleware = (req: any, res: any, next: any) => {
+  try {
+    const authHeader = req.headers.authorization || '';
+    const sessionCookie = req.cookies?.croperx_session || '';
+
+    let tokenVal = '';
+    if (authHeader.startsWith('Bearer ')) {
+      tokenVal = authHeader.substring(7).trim();
+    } else if (sessionCookie) {
+      tokenVal = sessionCookie.trim();
+    }
+
+    if (!tokenVal) {
+      return res.status(401).json({
+        error: "Authentication required. Please log in with an administrator account.",
+        code: "UNAUTHENTICATED"
+      });
+    }
+
+    // Cryptographic Session Token Verification
+    const verification = verifySignedSessionToken(tokenVal);
+    if (!verification.valid || !verification.userIdOrPhone) {
+      return res.status(401).json({
+        error: "Invalid, expired, or tampered session token. Please log in again.",
+        code: "INVALID_SESSION"
+      });
+    }
+
+    const targetIdentifier = verification.userIdOrPhone;
+    const clean = normalizePhoneNumber(targetIdentifier);
+    const db = readUsersDB();
+    let foundUser: any = db[clean];
+
+    if (!foundUser) {
+      for (const p in db) {
+        if (db[p].id === targetIdentifier || db[p].phoneNumber === targetIdentifier || db[p].phoneNumber === clean) {
+          foundUser = db[p];
+          break;
+        }
+      }
+    }
+
+    if (!foundUser) {
+      return res.status(401).json({
+        error: "Administrator account record not found in system records.",
+        code: "USER_NOT_FOUND"
+      });
+    }
+
+    if (foundUser.accountStatus === 'suspended' || foundUser.accountStatus === 'deleted') {
+      return res.status(403).json({
+        error: `Administrator account status is '${foundUser.accountStatus}'. Access is denied.`,
+        code: "ACCOUNT_INACTIVE"
+      });
+    }
+
+    // Strict Role Isolation: Only verified 'admin' role permitted
+    if (foundUser.role !== 'admin') {
+      adminAuditLogs.unshift({
+        id: "log-" + Date.now(),
+        timestamp: new Date().toISOString(),
+        user: foundUser.fullName || foundUser.farmerName || foundUser.phoneNumber || "Non-Admin User",
+        role: foundUser.role || "farmer",
+        action: `Forbidden Admin API Access Blocked: ${req.method} ${req.originalUrl || req.url}`,
+        target: req.originalUrl || req.url,
+        ipAddress: req.ip || "127.0.0.1",
+        status: "Blocked (403)"
+      });
+
+      return res.status(403).json({
+        error: "Administrator access required. Your account does not have administrative privileges.",
+        code: "FORBIDDEN_ROLE_MISMATCH",
+        requiredRole: "admin",
+        providedRole: foundUser.role || "none"
+      });
+    }
+
+    req.adminUser = foundUser;
+    req.adminName = foundUser.fullName || foundUser.farmerName || "CroperX Administrator";
+    next();
+  } catch (error: any) {
+    console.error("Admin Authorization Middleware Error:", error);
+    res.status(403).json({ error: "Administrator authorization failed." });
+  }
+};
+
+// Protect ALL /api/admin/* endpoints with server-authoritative session middleware
+app.use('/api/admin', adminAuthorizationMiddleware);
+
 // 5. Admin: List All Adviser Applications
 app.get("/api/admin/adviser/applications", (req, res) => {
   try {
@@ -1981,6 +2189,677 @@ app.get("/api/adviser/dashboard-guard", async (req, res) => {
     res.status(500).json({ error: err.message || "Failed to evaluate dashboard guard." });
   }
 });
+
+// 14. Adviser Assessment Proctoring & Security Events
+app.post("/api/adviser/assessment/security-event", (req, res) => {
+  try {
+    const { mobile, mobileNumber, phoneNumber, eventType, severity, metadata } = req.body;
+    const rawMobile = mobile || mobileNumber || phoneNumber;
+    if (!rawMobile || !eventType) {
+      return res.status(400).json({ error: "Mobile number and eventType are required." });
+    }
+    const cleanPhone = normalizePhoneNumber(rawMobile);
+    const event = recordSecurityEvent({
+      mobile: cleanPhone,
+      eventType,
+      severity,
+      metadata
+    });
+
+    if (severity === 'CRITICAL') {
+      adminAuditLogs.unshift({
+        id: "log-" + Date.now(),
+        timestamp: new Date().toISOString(),
+        user: cleanPhone,
+        role: "farmer_adviser",
+        action: `Proctoring Alert: ${eventType}`,
+        target: cleanPhone,
+        ipAddress: req.ip || "127.0.0.1",
+        status: "Warning"
+      });
+    }
+
+    res.json({ success: true, event });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to record security event." });
+  }
+});
+
+app.get("/api/adviser/assessment/security-events", (req, res) => {
+  try {
+    const rawMobile = req.query.mobileNumber || req.query.phoneNumber || req.query.phone;
+    const cleanPhone = rawMobile ? normalizePhoneNumber(String(rawMobile)) : undefined;
+    const events = getSecurityEvents(cleanPhone);
+    res.json({ success: true, count: events.length, events });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to fetch security events." });
+  }
+});
+
+// ============================================================
+// PHASE 43.1: AUTHORITATIVE AGRI STORE & FARM INPUTS MARKETPLACE
+// ============================================================
+
+// 1. Get Products Catalog with Categories & Filtering
+app.get("/api/store/products", (req, res) => {
+  try {
+    const categoryId = req.query.category as string;
+    const cropName = req.query.crop as string;
+    const search = req.query.search as string;
+    const featuredOnly = req.query.featured === "true";
+
+    const result = getCatalogProducts({
+      categoryId,
+      cropName,
+      search,
+      featuredOnly
+    });
+
+    res.json({
+      success: true,
+      categories: result.categories,
+      products: result.products,
+      totalCount: result.products.length
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to fetch store products." });
+  }
+});
+
+// 2. Get Single Product Details
+app.get("/api/store/products/:id", (req, res) => {
+  try {
+    const product = getProductById(req.params.id);
+    if (!product) {
+      return res.status(404).json({ error: "Product not found." });
+    }
+    res.json({ success: true, product });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to fetch product details." });
+  }
+});
+
+// 3. Get Farmer's Active Cart
+app.get("/api/store/cart", (req, res) => {
+  try {
+    const rawMobile = req.query.mobileNumber || req.query.phoneNumber || req.query.phone || req.headers["x-user-phone"];
+    if (!rawMobile) {
+      return res.status(400).json({ error: "Mobile number required to retrieve cart." });
+    }
+    const cleanPhone = normalizePhoneNumber(String(rawMobile));
+    const cart = getFarmerCart(cleanPhone);
+    res.json({ success: true, cart });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to retrieve cart." });
+  }
+});
+
+// 4. Add Item to Cart
+app.post("/api/store/cart/add", (req, res) => {
+  try {
+    const { mobileNumber, phoneNumber, mobile, productId, quantity } = req.body;
+    const rawMobile = mobile || mobileNumber || phoneNumber;
+    if (!rawMobile || !productId) {
+      return res.status(400).json({ error: "Mobile number and productId are required." });
+    }
+    const cleanPhone = normalizePhoneNumber(rawMobile);
+    const cart = addToCart(cleanPhone, productId, Number(quantity) || 1);
+    res.json({ success: true, message: "Item added to cart", cart });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to add item to cart." });
+  }
+});
+
+// 5. Update Cart Item Quantity
+app.post("/api/store/cart/update", (req, res) => {
+  try {
+    const { mobileNumber, phoneNumber, mobile, productId, quantity } = req.body;
+    const rawMobile = mobile || mobileNumber || phoneNumber;
+    if (!rawMobile || !productId || quantity === undefined) {
+      return res.status(400).json({ error: "Mobile number, productId, and quantity are required." });
+    }
+    const cleanPhone = normalizePhoneNumber(rawMobile);
+    const cart = updateCartItemQuantity(cleanPhone, productId, Number(quantity));
+    res.json({ success: true, message: "Cart updated", cart });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to update cart." });
+  }
+});
+
+// 6. Clear Cart
+app.post("/api/store/cart/clear", (req, res) => {
+  try {
+    const { mobileNumber, phoneNumber, mobile } = req.body;
+    const rawMobile = mobile || mobileNumber || phoneNumber;
+    if (!rawMobile) {
+      return res.status(400).json({ error: "Mobile number required." });
+    }
+    const cleanPhone = normalizePhoneNumber(rawMobile);
+    const cart = clearCart(cleanPhone);
+    res.json({ success: true, message: "Cart cleared", cart });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to clear cart." });
+  }
+});
+
+// 7. Place Order (Server-Authoritative Pricing & Stock Check)
+app.post("/api/store/checkout", async (req, res) => {
+  try {
+    const { mobileNumber, phoneNumber, mobile, farmerName, deliveryAddress, paymentMethod, notes } = req.body;
+    const rawMobile = mobile || mobileNumber || phoneNumber;
+    if (!rawMobile || !deliveryAddress) {
+      return res.status(400).json({ error: "Mobile number and deliveryAddress are required." });
+    }
+    const cleanPhone = normalizePhoneNumber(rawMobile);
+    const order = createFarmerOrder({
+      mobile: cleanPhone,
+      farmerName: farmerName || deliveryAddress.recipientName,
+      deliveryAddress,
+      paymentMethod: paymentMethod || "COD",
+      notes
+    });
+
+    adminAuditLogs.unshift({
+      id: "log-" + Date.now(),
+      timestamp: new Date().toISOString(),
+      user: order.farmerName || cleanPhone,
+      role: "farmer",
+      action: `Placed Agri Store Order #${order.orderNumber} (₹${order.grandTotal})`,
+      target: `${order.items.length} items to ${order.deliveryAddress.district}, ${order.deliveryAddress.state}`,
+      ipAddress: req.ip || "127.0.0.1",
+      status: "Success"
+    });
+
+    res.json({ success: true, order });
+  } catch (err: any) {
+    console.error("Store checkout error:", err);
+    res.status(400).json({ error: err.message || "Order checkout failed." });
+  }
+});
+
+// 8. Get Orders for Farmer
+app.get("/api/store/orders", (req, res) => {
+  try {
+    const rawMobile = req.query.mobileNumber || req.query.phoneNumber || req.query.phone || req.headers["x-user-phone"];
+    if (!rawMobile) {
+      return res.status(400).json({ error: "Mobile number required to retrieve orders." });
+    }
+    const cleanPhone = normalizePhoneNumber(String(rawMobile));
+    const orders = getFarmerOrders(cleanPhone);
+    res.json({ success: true, orders, count: orders.length });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to retrieve orders." });
+  }
+});
+
+// 9. Get Single Order by ID or Order Number
+app.get("/api/store/orders/:id", (req, res) => {
+  try {
+    const order = getOrderDetails(req.params.id);
+    if (!order) {
+      return res.status(404).json({ error: "Order not found." });
+    }
+    res.json({ success: true, order });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to retrieve order." });
+  }
+});
+
+// ============================================================
+// PHASE 44: ADMIN COMMAND CENTER & AI COMMERCE ENDPOINTS
+// ============================================================
+
+// 1. Admin Products List
+app.get("/api/admin/products", (req, res) => {
+  try {
+    const { search, categoryId, status, sortBy, sortOrder } = req.query;
+    const result = getAllProductsAdmin({
+      search: search ? String(search) : undefined,
+      categoryId: categoryId ? String(categoryId) : undefined,
+      status: (status as any) || "all",
+      sortBy: (sortBy as any) || "newest",
+      sortOrder: (sortOrder as any) || "desc"
+    });
+    res.json({ success: true, ...result });
+  } catch (err: any) {
+    console.error("Admin products fetch error:", err);
+    res.status(500).json({ error: err.message || "Failed to fetch products." });
+  }
+});
+
+// 2. Admin Create Product
+app.post("/api/admin/products", (req, res) => {
+  try {
+    const adminName = req.adminName || req.adminUser?.fullName || "Administrator";
+    const product = createProductAdmin(req.body, adminName);
+    
+    // Record in global audit logs
+    adminAuditLogs.unshift({
+      id: `audit_${Date.now()}_${crypto.randomBytes(2).toString("hex")}`,
+      timestamp: new Date().toISOString(),
+      user: adminName,
+      role: "admin",
+      action: `Created Agri Product: ${product.name} (SKU: ${product.sku || "N/A"})`,
+      target: `Category: ${product.categoryId}, Price: ₹${product.price}, Stock: ${product.stockQuantity}`,
+      ipAddress: req.ip || "127.0.0.1",
+      status: "Success"
+    });
+
+    res.status(201).json({ success: true, product });
+  } catch (err: any) {
+    console.error("Admin product create error:", err);
+    res.status(400).json({ error: err.message || "Failed to create product." });
+  }
+});
+
+// 3. Admin Update Product
+app.patch("/api/admin/products/:id", (req, res) => {
+  try {
+    const adminName = req.adminName || req.adminUser?.fullName || "Administrator";
+    const product = updateProductAdmin(req.params.id, req.body, adminName);
+
+    adminAuditLogs.unshift({
+      id: `audit_${Date.now()}_${crypto.randomBytes(2).toString("hex")}`,
+      timestamp: new Date().toISOString(),
+      user: adminName,
+      role: "admin",
+      action: `Updated Agri Product: ${product.name}`,
+      target: `ID: ${product.id}, New Price: ₹${product.price}, Stock: ${product.stockQuantity}`,
+      ipAddress: req.ip || "127.0.0.1",
+      status: "Success"
+    });
+
+    res.json({ success: true, product });
+  } catch (err: any) {
+    console.error("Admin product update error:", err);
+    res.status(400).json({ error: err.message || "Failed to update product." });
+  }
+});
+
+// 4. Admin Archive Product
+app.post("/api/admin/products/:id/archive", (req, res) => {
+  try {
+    const adminName = req.adminName || req.adminUser?.fullName || "Administrator";
+    const product = archiveProductAdmin(req.params.id, adminName);
+
+    adminAuditLogs.unshift({
+      id: `audit_${Date.now()}_${crypto.randomBytes(2).toString("hex")}`,
+      timestamp: new Date().toISOString(),
+      user: adminName,
+      role: "admin",
+      action: `Archived Product: ${product.name}`,
+      target: `Product ID: ${product.id}`,
+      ipAddress: req.ip || "127.0.0.1",
+      status: "Success"
+    });
+
+    res.json({ success: true, product });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message || "Failed to archive product." });
+  }
+});
+
+// 5. Admin Restore Product
+app.post("/api/admin/products/:id/restore", (req, res) => {
+  try {
+    const adminName = req.adminName || req.adminUser?.fullName || "Administrator";
+    const product = restoreProductAdmin(req.params.id, adminName);
+
+    adminAuditLogs.unshift({
+      id: `audit_${Date.now()}_${crypto.randomBytes(2).toString("hex")}`,
+      timestamp: new Date().toISOString(),
+      user: adminName,
+      role: "admin",
+      action: `Restored Product: ${product.name}`,
+      target: `Product ID: ${product.id}`,
+      ipAddress: req.ip || "127.0.0.1",
+      status: "Success"
+    });
+
+    res.json({ success: true, product });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message || "Failed to restore product." });
+  }
+});
+
+// 6. Admin Duplicate Product
+app.post("/api/admin/products/:id/duplicate", (req, res) => {
+  try {
+    const adminName = req.adminName || req.adminUser?.fullName || "Administrator";
+    const product = duplicateProductAdmin(req.params.id, adminName);
+
+    adminAuditLogs.unshift({
+      id: `audit_${Date.now()}_${crypto.randomBytes(2).toString("hex")}`,
+      timestamp: new Date().toISOString(),
+      user: adminName,
+      role: "admin",
+      action: `Duplicated Product into Draft: ${product.name}`,
+      target: `New Product ID: ${product.id}`,
+      ipAddress: req.ip || "127.0.0.1",
+      status: "Success"
+    });
+
+    res.json({ success: true, product });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message || "Failed to duplicate product." });
+  }
+});
+
+// 7. Admin Delete / Safe Soft Delete Product
+app.delete("/api/admin/products/:id", (req, res) => {
+  try {
+    const adminName = req.adminName || req.adminUser?.fullName || "Administrator";
+    const result = deleteProductAdmin(req.params.id, adminName);
+
+    adminAuditLogs.unshift({
+      id: `audit_${Date.now()}_${crypto.randomBytes(2).toString("hex")}`,
+      timestamp: new Date().toISOString(),
+      user: adminName,
+      role: "admin",
+      action: `Product Removal Requested: ID ${req.params.id}`,
+      target: result.message,
+      ipAddress: req.ip || "127.0.0.1",
+      status: "Success"
+    });
+
+    res.json({ success: true, ...result });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message || "Failed to delete product." });
+  }
+});
+
+// 8. Categories Management
+app.get("/api/admin/store/categories", (req, res) => {
+  try {
+    const categories = getAllCategoriesAdmin();
+    res.json({ success: true, categories });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to fetch categories." });
+  }
+});
+
+app.post("/api/admin/store/categories", (req, res) => {
+  try {
+    const category = createCategoryAdmin(req.body);
+    res.status(201).json({ success: true, category });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message || "Failed to create category." });
+  }
+});
+
+app.patch("/api/admin/store/categories/:id", (req, res) => {
+  try {
+    const category = updateCategoryAdmin(req.params.id, req.body);
+    res.json({ success: true, category });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message || "Failed to update category." });
+  }
+});
+
+app.post("/api/admin/store/categories/:id/archive", (req, res) => {
+  try {
+    const category = archiveCategoryAdmin(req.params.id);
+    res.json({ success: true, category });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message || "Failed to archive category." });
+  }
+});
+
+app.post("/api/admin/store/categories/:id/restore", (req, res) => {
+  try {
+    const category = restoreCategoryAdmin(req.params.id);
+    res.json({ success: true, category });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message || "Failed to restore category." });
+  }
+});
+
+// 9. Admin Inventory Adjustments & Transaction History
+app.get("/api/admin/inventory/logs", (req, res) => {
+  try {
+    const { productId } = req.query;
+    const logs = getInventoryTransactions(productId ? String(productId) : undefined);
+    res.json({ success: true, logs, total: logs.length });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to fetch inventory logs." });
+  }
+});
+
+app.post("/api/admin/inventory/adjust", (req, res) => {
+  try {
+    const adminName = req.adminName || req.adminUser?.fullName || "Administrator";
+    const { productId, operation, adjustment, reason, lowStockThreshold } = req.body;
+    
+    if (!productId || !operation || adjustment === undefined) {
+      return res.status(400).json({ error: "productId, operation (ADD|SUBTRACT|SET), and adjustment amount are required." });
+    }
+
+    const { product, log } = adjustInventoryAdmin({
+      productId,
+      operation,
+      adjustment: Number(adjustment),
+      reason: reason || "Manual stock adjustment from Admin Command Center",
+      adminName,
+      lowStockThreshold: lowStockThreshold !== undefined ? Number(lowStockThreshold) : undefined
+    });
+
+    adminAuditLogs.unshift({
+      id: `audit_${Date.now()}_${crypto.randomBytes(2).toString("hex")}`,
+      timestamp: new Date().toISOString(),
+      user: adminName,
+      role: "admin",
+      action: `Inventory Adjustment (${operation}): ${product.name}`,
+      target: `Prev: ${log.previousStock} -> New: ${log.newStock} (Reason: ${reason})`,
+      ipAddress: req.ip || "127.0.0.1",
+      status: "Success"
+    });
+
+    res.json({ success: true, product, log });
+  } catch (err: any) {
+    console.error("Inventory adjust error:", err);
+    res.status(400).json({ error: err.message || "Failed to adjust inventory." });
+  }
+});
+
+// 10. Admin Orders Management
+app.get("/api/admin/orders", (req, res) => {
+  try {
+    const { search, status, paymentStatus, paymentMethod, page, limit } = req.query;
+    const result = getAllOrdersAdmin({
+      search: search ? String(search) : undefined,
+      status: status ? String(status) : undefined,
+      paymentStatus: paymentStatus ? String(paymentStatus) : undefined,
+      paymentMethod: paymentMethod ? String(paymentMethod) : undefined,
+      page: page ? Number(page) : 1,
+      limit: limit ? Number(limit) : 50
+    });
+    res.json({ success: true, ...result });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to fetch admin orders." });
+  }
+});
+
+app.patch("/api/admin/orders/:id/status", (req, res) => {
+  try {
+    const adminName = req.adminName || req.adminUser?.fullName || "Administrator";
+    const { status, paymentStatus, internalNote } = req.body;
+
+    const order = updateOrderStatusAdmin(req.params.id, {
+      status,
+      paymentStatus,
+      internalNote,
+      updatedBy: adminName
+    });
+
+    adminAuditLogs.unshift({
+      id: `audit_${Date.now()}_${crypto.randomBytes(2).toString("hex")}`,
+      timestamp: new Date().toISOString(),
+      user: adminName,
+      role: "admin",
+      action: `Updated Order #${order.orderNumber} Status to '${order.status}'`,
+      target: `Farmer: ${order.farmerName}, Total: ₹${order.grandTotal}, Payment: ${order.paymentStatus}`,
+      ipAddress: req.ip || "127.0.0.1",
+      status: "Success"
+    });
+
+    res.json({ success: true, order });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message || "Failed to update order status." });
+  }
+});
+
+// 11. Admin Notifications & Broadcasts
+app.get("/api/admin/notifications", (req, res) => {
+  try {
+    const notifications = getAdminNotifications();
+    res.json({ success: true, notifications, total: notifications.length });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to fetch notifications." });
+  }
+});
+
+app.post("/api/admin/notifications", (req, res) => {
+  try {
+    const adminName = req.adminName || req.adminUser?.fullName || "Administrator";
+    const notification = createAdminNotification(req.body, adminName);
+
+    adminAuditLogs.unshift({
+      id: `audit_${Date.now()}_${crypto.randomBytes(2).toString("hex")}`,
+      timestamp: new Date().toISOString(),
+      user: adminName,
+      role: "admin",
+      action: `Dispatched Broadcast Notification: "${notification.title}"`,
+      target: `Audience: ${notification.targetAudience}, Priority: ${notification.priority}`,
+      ipAddress: req.ip || "127.0.0.1",
+      status: "Success"
+    });
+
+    res.status(201).json({ success: true, notification });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message || "Failed to create notification." });
+  }
+});
+
+app.post("/api/admin/notifications/:id/send", (req, res) => {
+  try {
+    const notification = sendAdminNotification(req.params.id);
+    res.json({ success: true, notification });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message || "Failed to send notification." });
+  }
+});
+
+app.delete("/api/admin/notifications/:id", (req, res) => {
+  try {
+    const result = deleteAdminNotification(req.params.id);
+    res.json({ success: true, ...result });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message || "Failed to delete notification." });
+  }
+});
+
+// User Notifications Feed (Farmers & Advisers)
+app.get("/api/notifications/feed", (req, res) => {
+  try {
+    const mobile = (req.query.mobileNumber || req.query.phone || req.headers["x-user-phone"] || "") as string;
+    const role = (req.query.role || req.headers["x-user-role"] || "farmer") as string;
+    const language = (req.query.language || req.headers["x-user-language"] || "en") as string;
+    const district = (req.query.district || "") as string;
+    const crop = (req.query.crop || "") as string;
+
+    const notifications = getUserNotificationsFeed({
+      mobile: normalizePhoneNumber(mobile),
+      role,
+      language,
+      district,
+      crop
+    });
+
+    res.json({ success: true, notifications, count: notifications.length });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to retrieve notifications feed." });
+  }
+});
+
+// 12. Operational Alerts
+app.get("/api/admin/alerts", (req, res) => {
+  try {
+    const alerts = getAdminAlerts();
+    res.json({ success: true, alerts, count: alerts.length });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to retrieve alerts." });
+  }
+});
+
+app.post("/api/admin/alerts", (req, res) => {
+  try {
+    const adminName = req.adminName || req.adminUser?.fullName || "Administrator";
+    const alert = createAdminAlert(req.body, adminName);
+    
+    adminAuditLogs.unshift({
+      id: `audit_${Date.now()}_${crypto.randomBytes(2).toString("hex")}`,
+      timestamp: new Date().toISOString(),
+      user: adminName,
+      role: "admin",
+      action: `Created High Priority Alert: "${alert.title}"`,
+      target: `Severity: ${alert.severity}, Category: ${alert.category}, Region: ${alert.targetRegion}`,
+      ipAddress: req.ip || "127.0.0.1",
+      status: "Success"
+    });
+
+    res.status(201).json({ success: true, alert });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message || "Failed to create alert." });
+  }
+});
+
+// 13. Admin Commerce Analytics & AI Intelligence
+app.get("/api/admin/commerce/analytics", (req, res) => {
+  try {
+    const analytics = getAdminCommerceAnalytics();
+    res.json({ success: true, ...analytics });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to generate commerce analytics." });
+  }
+});
+
+app.get("/api/admin/commerce/ai-insights", (req, res) => {
+  try {
+    const insights = getAdminAiInsights();
+    res.json({ success: true, insights });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to generate AI insights." });
+  }
+});
+
+// 14. Farmer AI Recommendations & Natural Language Search
+app.get("/api/store/ai/recommendations", (req, res) => {
+  try {
+    const { crop, acreage, soilType, district, season } = req.query;
+    const recommendations = getAiProductRecommendations({
+      crop: crop ? String(crop) : undefined,
+      acreage: acreage ? Number(acreage) : undefined,
+      soilType: soilType ? String(soilType) : undefined,
+      district: district ? String(district) : undefined,
+      season: season ? String(season) : undefined
+    });
+    res.json({ success: true, ...recommendations });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to generate AI recommendations." });
+  }
+});
+
+app.get("/api/store/ai/search", (req, res) => {
+  try {
+    const query = String(req.query.q || "");
+    const searchResult = getAiProductSearch(query);
+    res.json({ success: true, ...searchResult });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to execute AI search." });
+  }
+});
+
+
 
 // Real-Time Live Weather & Early Warning Alert Detection Endpoint
 app.post("/api/weather/live", async (req, res) => {
@@ -4616,158 +5495,6 @@ app.post("/api/farmer/ask", async (req, res) => {
 // PHASE 28: ADMIN WORKSPACE BACKEND APIS
 // ==========================================
 
-// In-memory / Mock database store for Admin management
-interface AdminAuditLogEntry {
-  id: string;
-  timestamp: string;
-  user: string;
-  role: string;
-  action: string;
-  target: string;
-  ipAddress: string;
-  status: string;
-}
-
-const adminAuditLogs: AdminAuditLogEntry[] = [
-  { id: "log-1", timestamp: new Date(Date.now() - 1000 * 60 * 3).toISOString(), user: "Admin (Chief Operations)", role: "admin", action: "System Health Verification", target: "Global Telemetry Ingress", ipAddress: "192.168.1.10", status: "Success" },
-  { id: "log-2", timestamp: new Date(Date.now() - 1000 * 60 * 12).toISOString(), user: "Dr. Anand Sharma", role: "farmer_adviser", action: "Completed Video Advisory Session", target: "Call #call-98214 (Ramesh Kumar)", ipAddress: "10.0.4.52", status: "Success" },
-  { id: "log-3", timestamp: new Date(Date.now() - 1000 * 60 * 25).toISOString(), user: "Ramesh Kumar", role: "farmer", action: "Camera Crop Scan & Diagnostic", target: "North Field Zone A", ipAddress: "172.16.8.9", status: "Success" },
-  { id: "log-4", timestamp: new Date(Date.now() - 1000 * 60 * 45).toISOString(), user: "Admin (Chief Operations)", role: "admin", action: "Assigned Adviser to District", target: "Adviser Bureau Punjab", ipAddress: "192.168.1.10", status: "Success" },
-  { id: "log-5", timestamp: new Date(Date.now() - 1000 * 60 * 90).toISOString(), user: "System Telemetry Worker", role: "system", action: "Auto-calibrated Moisture Thresholds", target: "Sensor Node Z1-NPK-4", ipAddress: "127.0.0.1", status: "Success" },
-];
-
-// ============================================================
-// AUTHORITATIVE ADMIN USER DIRECTORY & ROLE MANAGEMENT (PHASE 32)
-// ============================================================
-
-function sanitizeUserForAdmin(u: any) {
-  const { password: _, passwordHash: __, passwordSalt: ___, ...userSafe } = u;
-  const isAdviser = u.role === 'farmer_adviser';
-  const isCustomer = u.role === 'customer';
-  const isAdmin = u.role === 'admin';
-
-  return {
-    ...userSafe,
-    id: u.id || `usr_${u.phoneNumber}`,
-    name: u.fullName || u.farmerName || ("User " + (u.phoneNumber ? u.phoneNumber.slice(-4) : "")),
-    fullName: u.fullName || u.farmerName || ("User " + (u.phoneNumber ? u.phoneNumber.slice(-4) : "")),
-    phoneNumber: u.phoneNumber,
-    role: u.role || 'farmer',
-    accountStatus: u.accountStatus || 'active',
-    status: u.accountStatus === 'deleted' ? 'Deleted' : u.accountStatus === 'suspended' ? 'Suspended' : u.accountStatus === 'pending' ? 'Under Review' : isAdviser ? 'Available' : 'Active',
-    specialty: u.specialization || (isAdviser ? 'General Agronomy & Plant Health' : isCustomer ? (u.customerType || 'Crop Procurement') : 'Crop Cultivation'),
-    specialization: u.specialization || (isAdviser ? 'General Agronomy & Plant Health' : isCustomer ? (u.customerType || 'Crop Procurement') : 'Crop Cultivation'),
-    organization: u.organization || (isAdviser ? 'Agricultural Extension Network' : isCustomer ? 'Commercial Agro Buyer' : 'Independent Farm'),
-    licenseNumber: u.licenseNumber || null,
-    consultationHours: u.consultationHours || (isAdviser ? '08:00 AM - 06:00 PM IST' : null),
-    bio: u.bio || '',
-    customerType: u.customerType || (isCustomer ? 'Commercial Farm Buyer' : undefined),
-    customerNotes: u.customerNotes || '',
-    farmLocation: u.farmLocation || (u.district ? `${u.district}, ${u.state}` : isAdviser ? 'Regional Agronomy Center' : isCustomer ? 'Commodity Trading Hub' : 'Green Valley Farm'),
-    location: u.farmLocation || (u.district ? `${u.district}, ${u.state}` : isAdviser ? 'Regional Agronomy Center' : isCustomer ? 'Commodity Trading Hub' : 'Green Valley Farm'),
-    farmAreaSize: Number(u.farmAreaSize) || (isAdviser ? 50 : isCustomer ? 0 : 5),
-    assignedCrop: u.preferredCropCycle?.split('→')?.[0]?.trim() || (isCustomer ? "All Grains & Pulses" : "Kharif Rice"),
-    assignedAdviser: u.assignedAdviser || "Regional Agronomy Bureau",
-    assignedFarmersCount: u.assignedFarmersCount !== undefined ? u.assignedFarmersCount : (isAdviser ? 0 : undefined),
-    activeCallsToday: u.activeCallsToday !== undefined ? u.activeCallsToday : (isAdviser ? 0 : undefined),
-    rating: u.rating || 4.9,
-    soilHealthScore: u.soilHealthScore || Math.round((u.targetPhGoal || 6.5) * 12 + 10),
-    lastActive: u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Active recently",
-    locationSharingEnabled: u.locationSharingEnabled !== false,
-    farmerLocationState: u.farmerLocationState || null,
-    consultationLocation: u.consultationLocation || null,
-    createdAt: u.createdAt || new Date().toISOString(),
-    updatedAt: u.updatedAt || new Date().toISOString(),
-    lastLoginAt: u.lastLoginAt || null
-  };
-}
-
-// ============================================================
-// STRICT ADMIN API AUTHORIZATION MIDDLEWARE (Phase 36B)
-// ============================================================
-const adminAuthorizationMiddleware = (req: any, res: any, next: any) => {
-  try {
-    const authHeader = req.headers.authorization || '';
-    const userPhoneHeader = req.headers['x-user-phone'] || '';
-    const userRoleHeader = req.headers['x-user-role'] || '';
-
-    let targetPhone = userPhoneHeader;
-    const sessionCookie = req.cookies?.croperx_session || '';
-
-    if (!targetPhone && authHeader.startsWith('Bearer ')) {
-      const tokenVal = authHeader.substring(7).trim();
-      if (tokenVal.startsWith('+') || /^\d+$/.test(tokenVal)) {
-        targetPhone = tokenVal;
-      } else if (tokenVal.startsWith('cx_')) {
-        const verified = verifySignedSessionToken(tokenVal);
-        if (verified.valid && verified.userIdOrPhone) {
-          targetPhone = verified.userIdOrPhone;
-        }
-      }
-    }
-
-    if (!targetPhone && sessionCookie) {
-      if (sessionCookie.startsWith('cx_')) {
-        const verified = verifySignedSessionToken(sessionCookie);
-        if (verified.valid && verified.userIdOrPhone) {
-          targetPhone = verified.userIdOrPhone;
-        }
-      } else if (sessionCookie.startsWith('+') || /^\d+$/.test(sessionCookie)) {
-        targetPhone = sessionCookie;
-      }
-    }
-
-    const db = readUsersDB();
-    let foundUser: any = null;
-
-    if (targetPhone) {
-      const clean = normalizePhoneNumber(targetPhone);
-      foundUser = db[clean];
-    }
-
-    if (!foundUser) {
-      for (const p in db) {
-        if (db[p].id === targetPhone || db[p].phoneNumber === targetPhone) {
-          foundUser = db[p];
-          break;
-        }
-      }
-    }
-
-    // Determine role authoritatively from DB if user found, or fallback to header check
-    const effectiveRole = foundUser ? (foundUser.role || 'farmer') : userRoleHeader;
-
-    // Strict Role Isolation: Non-administrators (Farmer, Adviser, Customer, Guest) are strictly forbidden
-    if (effectiveRole !== 'admin') {
-      adminAuditLogs.unshift({
-        id: "log-" + Date.now(),
-        timestamp: new Date().toISOString(),
-        user: foundUser?.farmerName || foundUser?.phoneNumber || userPhoneHeader || "Unauthorized Client",
-        role: effectiveRole || "unknown",
-        action: `Forbidden Admin API Access Blocked: ${req.method} ${req.originalUrl || req.url}`,
-        target: req.originalUrl || req.url,
-        ipAddress: req.ip || "127.0.0.1",
-        status: "Blocked (403)"
-      });
-
-      return res.status(403).json({
-        error: "Administrator access required.",
-        code: "FORBIDDEN_ROLE_MISMATCH",
-        requiredRole: "admin",
-        providedRole: effectiveRole || "none"
-      });
-    }
-
-    req.adminUser = foundUser;
-    next();
-  } catch (error: any) {
-    console.error("Admin Authorization Middleware Error:", error);
-    res.status(403).json({ error: "Administrator access required." });
-  }
-};
-
-app.use('/api/admin', adminAuthorizationMiddleware);
-
 // 1. Authoritative Farmer Directory
 app.get("/api/admin/farmers", (req, res) => {
   try {
@@ -6305,6 +7032,11 @@ async function initVite() {
       process.exit(1);
     }
   }
+
+  // Initialize Supabase authoritative store synchronization in the background
+  syncStoreWithSupabase().catch(err => {
+    console.warn('[AgriStore Supabase Initial Sync Notice]', err?.message || err);
+  });
 
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

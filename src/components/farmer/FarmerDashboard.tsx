@@ -14,6 +14,8 @@ import { Farmer3DHeroCard } from './Farmer3DHeroCard';
 import { Farmer3DActionGrid } from './Farmer3DActionGrid';
 import { InstagramAgriChat } from '../chat/InstagramAgriChat';
 import { GlobalAccountMenu } from '../account/GlobalAccountMenu';
+import { FarmerAgriStore } from './FarmerAgriStore';
+import { ShoppingBag } from 'lucide-react';
 
 interface FarmerDashboardProps {
   farmerProfile: FarmerProfile;
@@ -48,6 +50,7 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
   const [showWeatherModal, setShowWeatherModal] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [showLangPicker, setShowLangPicker] = useState(false);
+  const [showAgriStore, setShowAgriStore] = useState(false);
 
   // Mobile Bottom Navigation active item
   const [mobileNav, setMobileNav] = useState<'home' | 'crop' | 'talk' | 'profile'>('home');
@@ -529,6 +532,37 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
               </div>
               <ChevronRight className="w-5 h-5 text-slate-400" />
             </motion.button>
+
+            {/* Action 6: AGRI STORE / KRISHI DUKAN (Phase 43.1) */}
+            <motion.button
+              whileHover={{ scale: 1.01 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setShowAgriStore(true)}
+              className="text-left p-5 rounded-3xl bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 border-2 border-emerald-300 dark:border-emerald-700 hover:border-emerald-500 shadow-sm hover:shadow-md transition-all flex items-center justify-between min-h-[80px] sm:col-span-2"
+            >
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center text-2xl shadow-sm">
+                  🌾
+                </div>
+                <div>
+                  <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-200/60 dark:bg-emerald-800/60 text-emerald-800 dark:text-emerald-200 text-3xs font-bold uppercase tracking-wider mb-0.5">
+                    <span>100% Certified Direct Delivery</span>
+                  </div>
+                  <h4 className="text-base font-bold text-slate-900 dark:text-white">
+                    {language === 'hi' ? '🌾 क्रॉपरएक्स कृषि दुकान (Agri Store)' : '🌾 CroperX Agri Store & Inputs'}
+                  </h4>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 font-medium">
+                    {language === 'hi' ? 'प्रमाणित बीज, जैव-उर्वरक, मृदा किट एवं फसल सुरक्षा सीधे खेत पर' : 'Certified seeds, bio-nutrients, soil test kits & crop protection'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="hidden sm:inline-block text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-white dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-emerald-300 dark:border-emerald-700 shadow-xs">
+                  {language === 'hi' ? 'दुकान खोलें' : 'Open Store'}
+                </span>
+                <ChevronRight className="w-5 h-5 text-emerald-600" />
+              </div>
+            </motion.button>
           </div>
         </div>
 
@@ -866,6 +900,28 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
           </motion.div>
         </div>
       )}
+
+      {/* Agri Store Fullscreen Modal (Phase 43.1) */}
+      <AnimatePresence>
+        {showAgriStore && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/70 backdrop-blur-xs">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="w-full max-w-6xl h-[92vh] rounded-3xl overflow-hidden shadow-2xl border border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-950 flex flex-col"
+            >
+              <FarmerAgriStore
+                farmerMobile={currentUser?.phoneNumber || farmerProfile.farmerName || '9876543210'}
+                farmerName={farmerName}
+                farmerLocation={farmLocation}
+                primaryCrop={primaryCrop}
+                onClose={() => setShowAgriStore(false)}
+              />
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

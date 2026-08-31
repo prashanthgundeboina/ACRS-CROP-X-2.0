@@ -427,3 +427,285 @@ export async function verifyAdviserConsultationLocation(phoneNumber: string, isV
   return data;
 }
 
+// ============================================================
+// PHASE 44: ADMIN STORE & COMMERCE SERVICE METHODS
+// ============================================================
+
+export interface AdminProductFilter {
+  search?: string;
+  categoryId?: string;
+  status?: 'all' | 'in_stock' | 'low_stock' | 'out_of_stock' | 'archived';
+  sortBy?: 'name' | 'price' | 'stock' | 'newest';
+  sortOrder?: 'asc' | 'desc';
+}
+
+export async function fetchAdminProducts(options: AdminProductFilter = {}): Promise<{
+  total: number;
+  filteredCount: number;
+  products: any[];
+}> {
+  const params = new URLSearchParams();
+  if (options.search) params.set('search', options.search);
+  if (options.categoryId) params.set('categoryId', options.categoryId);
+  if (options.status) params.set('status', options.status);
+  if (options.sortBy) params.set('sortBy', options.sortBy);
+  if (options.sortOrder) params.set('sortOrder', options.sortOrder);
+
+  const res = await fetch(`/api/admin/products?${params.toString()}`, { headers: getAdminHeaders() });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to fetch products');
+  return data;
+}
+
+export async function createAdminProduct(productData: any): Promise<any> {
+  const res = await fetch('/api/admin/products', {
+    method: 'POST',
+    headers: getAdminHeaders(),
+    body: JSON.stringify(productData),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to create product');
+  return data.product;
+}
+
+export async function updateAdminProduct(id: string, updates: any): Promise<any> {
+  const res = await fetch(`/api/admin/products/${id}`, {
+    method: 'PATCH',
+    headers: getAdminHeaders(),
+    body: JSON.stringify(updates),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to update product');
+  return data.product;
+}
+
+export async function archiveAdminProduct(id: string): Promise<any> {
+  const res = await fetch(`/api/admin/products/${id}/archive`, {
+    method: 'POST',
+    headers: getAdminHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to archive product');
+  return data.product;
+}
+
+export async function restoreAdminProduct(id: string): Promise<any> {
+  const res = await fetch(`/api/admin/products/${id}/restore`, {
+    method: 'POST',
+    headers: getAdminHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to restore product');
+  return data.product;
+}
+
+export async function duplicateAdminProduct(id: string): Promise<any> {
+  const res = await fetch(`/api/admin/products/${id}/duplicate`, {
+    method: 'POST',
+    headers: getAdminHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to duplicate product');
+  return data.product;
+}
+
+export async function deleteAdminProduct(id: string): Promise<{ success: boolean; message: string }> {
+  const res = await fetch(`/api/admin/products/${id}`, {
+    method: 'DELETE',
+    headers: getAdminHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to delete product');
+  return data;
+}
+
+// Categories
+export async function fetchAdminCategories(): Promise<any[]> {
+  const res = await fetch('/api/admin/store/categories', { headers: getAdminHeaders() });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to fetch categories');
+  return data.categories || [];
+}
+
+export async function createAdminCategory(catData: any): Promise<any> {
+  const res = await fetch('/api/admin/store/categories', {
+    method: 'POST',
+    headers: getAdminHeaders(),
+    body: JSON.stringify(catData),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to create category');
+  return data.category;
+}
+
+export async function updateAdminCategory(id: string, updates: any): Promise<any> {
+  const res = await fetch(`/api/admin/store/categories/${id}`, {
+    method: 'PATCH',
+    headers: getAdminHeaders(),
+    body: JSON.stringify(updates),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to update category');
+  return data.category;
+}
+
+export async function archiveAdminCategory(id: string): Promise<any> {
+  const res = await fetch(`/api/admin/store/categories/${id}/archive`, {
+    method: 'POST',
+    headers: getAdminHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to archive category');
+  return data.category;
+}
+
+export async function restoreAdminCategory(id: string): Promise<any> {
+  const res = await fetch(`/api/admin/store/categories/${id}/restore`, {
+    method: 'POST',
+    headers: getAdminHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to restore category');
+  return data.category;
+}
+
+// Inventory
+export async function fetchAdminInventoryLogs(productId?: string): Promise<any[]> {
+  const url = productId ? `/api/admin/inventory/logs?productId=${productId}` : '/api/admin/inventory/logs';
+  const res = await fetch(url, { headers: getAdminHeaders() });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to fetch inventory logs');
+  return data.logs || [];
+}
+
+export async function adjustAdminInventory(payload: {
+  productId: string;
+  operation: 'ADD' | 'SUBTRACT' | 'SET';
+  adjustment: number;
+  reason: string;
+  lowStockThreshold?: number;
+}): Promise<{ product: any; log: any }> {
+  const res = await fetch('/api/admin/inventory/adjust', {
+    method: 'POST',
+    headers: getAdminHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to adjust stock');
+  return data;
+}
+
+// Orders
+export interface AdminOrdersFilter {
+  search?: string;
+  status?: string;
+  paymentStatus?: string;
+  paymentMethod?: string;
+  page?: number;
+  limit?: number;
+}
+
+export async function fetchAdminOrders(options: AdminOrdersFilter = {}): Promise<any> {
+  const params = new URLSearchParams();
+  if (options.search) params.set('search', options.search);
+  if (options.status) params.set('status', options.status);
+  if (options.paymentStatus) params.set('paymentStatus', options.paymentStatus);
+  if (options.paymentMethod) params.set('paymentMethod', options.paymentMethod);
+  if (options.page) params.set('page', String(options.page));
+  if (options.limit) params.set('limit', String(options.limit));
+
+  const res = await fetch(`/api/admin/orders?${params.toString()}`, { headers: getAdminHeaders() });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to fetch orders');
+  return data;
+}
+
+export async function updateAdminOrderStatus(id: string, payload: {
+  status: string;
+  paymentStatus?: string;
+  internalNote?: string;
+}): Promise<any> {
+  const res = await fetch(`/api/admin/orders/${id}/status`, {
+    method: 'PATCH',
+    headers: getAdminHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to update order status');
+  return data.order;
+}
+
+// Notifications
+export async function fetchAdminNotifications(): Promise<any[]> {
+  const res = await fetch('/api/admin/notifications', { headers: getAdminHeaders() });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to fetch notifications');
+  return data.notifications || [];
+}
+
+export async function createAdminNotification(notificationData: any): Promise<any> {
+  const res = await fetch('/api/admin/notifications', {
+    method: 'POST',
+    headers: getAdminHeaders(),
+    body: JSON.stringify(notificationData),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to create broadcast notification');
+  return data.notification;
+}
+
+export async function sendAdminNotification(id: string): Promise<any> {
+  const res = await fetch(`/api/admin/notifications/${id}/send`, {
+    method: 'POST',
+    headers: getAdminHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to send notification');
+  return data.notification;
+}
+
+export async function deleteAdminNotification(id: string): Promise<any> {
+  const res = await fetch(`/api/admin/notifications/${id}`, {
+    method: 'DELETE',
+    headers: getAdminHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to delete notification');
+  return data;
+}
+
+// Alerts
+export async function fetchAdminAlerts(): Promise<any[]> {
+  const res = await fetch('/api/admin/alerts', { headers: getAdminHeaders() });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to fetch alerts');
+  return data.alerts || [];
+}
+
+export async function createAdminAlert(alertData: any): Promise<any> {
+  const res = await fetch('/api/admin/alerts', {
+    method: 'POST',
+    headers: getAdminHeaders(),
+    body: JSON.stringify(alertData),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to create alert');
+  return data.alert;
+}
+
+// Analytics & AI Insights
+export async function fetchAdminCommerceAnalytics(): Promise<any> {
+  const res = await fetch('/api/admin/commerce/analytics', { headers: getAdminHeaders() });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to fetch commerce analytics');
+  return data;
+}
+
+export async function fetchAdminAiInsights(): Promise<any> {
+  const res = await fetch('/api/admin/commerce/ai-insights', { headers: getAdminHeaders() });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to generate AI insights');
+  return data.insights;
+}
+
+

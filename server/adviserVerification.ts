@@ -1539,3 +1539,56 @@ export async function evaluateMasteryAssessment(mobile: string, answers: Record<
       : 'You scored ' + correct + ' out of ' + total + '. A minimum of 10/12 is required to unlock full Adviser Workstation access. Please review the highlighted modules and re-attempt the assessment.',
   };
 }
+
+/**
+ * 10. Record Proctoring & Security Event
+ */
+const SECURITY_EVENTS_FILE = path.join(DATA_DIR, 'adviser_security_events_db.json');
+
+export function recordSecurityEvent(params: {
+  mobile: string;
+  eventType: string;
+  severity?: 'INFO' | 'WARNING' | 'CRITICAL';
+  metadata?: any;
+}) {
+  const eventsDb = readJsonFile<any[]>(SECURITY_EVENTS_FILE, []);
+  const now = new Date().toISOString();
+  const event = {
+    id: `sec_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`,
+    mobile: params.mobile,
+    eventType: params.eventType,
+    severity: params.severity || 'WARNING',
+    metadata: params.metadata || {},
+    createdAt: now,
+  };
+
+  eventsDb.push(event);
+  writeJsonFile(SECURITY_EVENTS_FILE, eventsDb);
+
+  // Sync to Supabase
+  try {
+    const { client, isConfigured } = getSupabase();
+    if (isConfigured && client) {
+      client.from('adviser_security_events').insert({
+        id: crypto.randomUUID(),
+        mobile: params.mobile,
+        event_type: params.eventType,
+        severity: params.severity || 'WARNING',
+        metadata: params.metadata || {},
+        created_at: now
+      });
+    }
+  } catch (e) {}
+
+  return event;
+}
+
+export function getSecurityEvents(mobile?: string) {
+  const events = readJsonFile<any[]>(SECURITY_EVENTS_FILE, []);
+  if (mobile) {
+    const cleanMobile = mobile.replace(/\D/g, '');
+    return events.filter(e => e.mobile.replace(/\D/g, '') === cleanMobile);
+  }
+  return events;
+}
+

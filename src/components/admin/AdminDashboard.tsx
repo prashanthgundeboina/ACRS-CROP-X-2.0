@@ -5,7 +5,7 @@ import {
   Activity, ScrollText, Settings, Search, RefreshCw, ExternalLink, LogOut,
   User, CheckCircle2, AlertTriangle, AlertCircle, Eye, ChevronRight, Server,
   Cpu, HardDrive, Wifi, Smartphone, Globe, ShieldCheck, ArrowUpRight, Filter,
-  Siren
+  Siren, ShoppingBag, Package, Layers, Boxes, Megaphone, TrendingUp
 } from 'lucide-react';
 import { UserAccount, UserRole, AdminFarmerRecord, AdminAdviserRecord, AdminFarmRecord, AdminCaseRecord, AdminDeviceRecord, AdminAuditLog, AdminSystemHealth } from '../../types';
 import {
@@ -23,6 +23,13 @@ import { GlobalAccountMenu } from '../account/GlobalAccountMenu';
 import { AdminHomeMediaManager } from './AdminHomeMediaManager';
 import { AdminLivePresenceManager } from './AdminLivePresenceManager';
 import { AdviserVerificationAdminView } from './AdviserVerificationAdminView';
+import { AdminStoreProductsManager } from './AdminStoreProductsManager';
+import { AdminStoreCategoriesManager } from './AdminStoreCategoriesManager';
+import { AdminStoreInventoryManager } from './AdminStoreInventoryManager';
+import { AdminStoreOrdersManager } from './AdminStoreOrdersManager';
+import { AdminBroadcastCenter } from './AdminBroadcastCenter';
+import { AdminOperationalAlertsManager } from './AdminOperationalAlertsManager';
+import { AdminCommerceAnalyticsView } from './AdminCommerceAnalyticsView';
 
 interface AdminDashboardProps {
   currentUser: UserAccount | null;
@@ -35,6 +42,13 @@ interface AdminDashboardProps {
 
 type AdminTab =
   | 'overview'
+  | 'store_products'
+  | 'store_orders'
+  | 'store_categories'
+  | 'store_inventory'
+  | 'commerce_analytics'
+  | 'broadcasts'
+  | 'alerts_manager'
   | 'adviser_verification'
   | 'home_cms'
   | 'live_presence'
@@ -128,8 +142,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   };
 
   // Nav Items
-  const navItems: { id: AdminTab; label: string; icon: any; count?: number }[] = [
+  const navItems: { id: AdminTab; label: string; icon: any; count?: number; group?: string }[] = [
     { id: 'overview', label: 'Overview', icon: BarChart3 },
+    { id: 'store_products', label: 'Agri Store Products', icon: Package },
+    { id: 'store_orders', label: 'Store Orders & Logistics', icon: ShoppingBag },
+    { id: 'store_categories', label: 'Store Categories', icon: Layers },
+    { id: 'store_inventory', label: 'Inventory & Audits', icon: Boxes },
+    { id: 'commerce_analytics', label: 'Commerce Intelligence', icon: TrendingUp },
+    { id: 'broadcasts', label: 'Broadcast & Notifications', icon: Megaphone },
+    { id: 'alerts_manager', label: 'Emergency Alerts', icon: Siren },
     { id: 'adviser_verification', label: 'Adviser Verification', icon: ShieldCheck },
     { id: 'live_presence', label: 'Live Presence & SOS', icon: Radio },
     { id: 'home_cms', label: 'Home Page CMS', icon: Globe },
@@ -987,6 +1008,41 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
               </div>
             </div>
+          )}
+
+          {/* TAB: AGRI STORE PRODUCTS (PHASE 44) */}
+          {activeTab === 'store_products' && (
+            <AdminStoreProductsManager />
+          )}
+
+          {/* TAB: STORE ORDERS & LOGISTICS (PHASE 44) */}
+          {activeTab === 'store_orders' && (
+            <AdminStoreOrdersManager />
+          )}
+
+          {/* TAB: STORE CATEGORIES (PHASE 44) */}
+          {activeTab === 'store_categories' && (
+            <AdminStoreCategoriesManager />
+          )}
+
+          {/* TAB: INVENTORY & STOCK AUDITS (PHASE 44) */}
+          {activeTab === 'store_inventory' && (
+            <AdminStoreInventoryManager />
+          )}
+
+          {/* TAB: COMMERCE ANALYTICS & AI INTELLIGENCE (PHASE 44) */}
+          {activeTab === 'commerce_analytics' && (
+            <AdminCommerceAnalyticsView />
+          )}
+
+          {/* TAB: BROADCAST & NOTIFICATIONS (PHASE 44) */}
+          {activeTab === 'broadcasts' && (
+            <AdminBroadcastCenter />
+          )}
+
+          {/* TAB: OPERATIONAL EMERGENCY ALERTS (PHASE 44) */}
+          {activeTab === 'alerts_manager' && (
+            <AdminOperationalAlertsManager />
           )}
 
           {/* TAB: ADVISER VERIFICATION & ONBOARDING (PHASE 43) */}

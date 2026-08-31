@@ -3,9 +3,19 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   BookOpen, Award, CheckCircle2, AlertCircle, ChevronRight, ChevronLeft,
   Check, Lock, Play, Sparkles, HelpCircle, FileCheck, ShieldCheck,
-  RefreshCw, Layers, ArrowRight, UserCheck, PhoneCall, Radio, Eye
+  RefreshCw, Layers, ArrowRight, UserCheck, PhoneCall, Radio, Eye,
+  Lightbulb, CheckCircle
 } from 'lucide-react';
-import { UserAccount, AdviserCourseModule, AdviserMasteryQuestion } from '../../types';
+import { UserAccount } from '../../types';
+import { ADVISER_LEARNING_MODULES, AdviserCourseModule } from '../../data/adviserLearningModules';
+
+export interface AdviserMasteryQuestion {
+  id: number;
+  moduleRef?: string;
+  moduleTitle?: string;
+  question: string;
+  options: string[];
+}
 
 interface AdviserLearningGatewayProps {
   currentUser?: UserAccount | null;
@@ -30,10 +40,10 @@ export const AdviserLearningGateway: React.FC<AdviserLearningGatewayProps> = ({
   onExit,
   onClose
 }) => {
-  const [modules, setModules] = useState<AdviserCourseModule[]>([]);
+  const [modules, setModules] = useState<AdviserCourseModule[]>(ADVISER_LEARNING_MODULES);
   const [currentModuleIndex, setCurrentModuleIndex] = useState(0);
   const [completedModules, setCompletedModules] = useState<number[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [savingProgress, setSavingProgress] = useState(false);
 
   const effectiveMobile = currentUser?.phoneNumber || mobileNumber || '';
@@ -41,8 +51,8 @@ export const AdviserLearningGateway: React.FC<AdviserLearningGatewayProps> = ({
   const handleExit = onLogout || onExit || onClose || (() => {});
 
   // Checkpoint Quiz Selection State for each module
-  const [checkpointAnswers, setCheckpointAnswers] = useState<Record<number, number>>({});
-  const [checkpointSubmitted, setCheckpointSubmitted] = useState<Record<number, boolean>>({});
+  const [checkpointAnswers, setCheckpointAnswers] = useState<Record<string | number, number>>({});
+  const [checkpointSubmitted, setCheckpointSubmitted] = useState<Record<string | number, boolean>>({});
 
   // Final Mastery Assessment State
   const [inMasteryMode, setInMasteryMode] = useState(false);
@@ -60,50 +70,53 @@ export const AdviserLearningGateway: React.FC<AdviserLearningGatewayProps> = ({
   // Load modules and progress on mount
   useEffect(() => {
     loadCourseData();
-  }, [currentUser]);
+  }, [currentUser, effectiveMobile]);
 
   const loadCourseData = async () => {
-    setLoading(true);
     try {
       // 1. Fetch Modules
       const modRes = await fetch('/api/adviser/course/modules');
-      const modData = await modRes.json();
-      if (modRes.ok && modData.modules) {
-        setModules(modData.modules);
+      if (modRes.ok) {
+        const modData = await modRes.json();
+        if (modData.modules && Array.isArray(modData.modules) && modData.modules.length > 0) {
+          setModules(modData.modules);
+        }
       }
 
       // 2. Fetch User Course Progress
       const mobile = effectiveMobile;
       if (mobile) {
-        const progRes = await fetch(`/api/adviser/course/progress?mobile=${encodeURIComponent(mobile)}`);
-        const progData = await progRes.json();
-        if (progRes.ok && progData.progress) {
-          const comp = progData.progress.completedModules || [];
-          setCompletedModules(comp);
-          const curr = progData.progress.currentModule || 1;
-          setCurrentModuleIndex(Math.max(0, Math.min(curr - 1, 11)));
+        const progRes = await fetch(`/api/adviser/course/progress?mobile=${encodeURIComponent(mobile)}&mobileNumber=${encodeURIComponent(mobile)}`);
+        if (progRes.ok) {
+          const progData = await progRes.json();
+          if (progData.progress) {
+            const comp = progData.progress.completedModules || [];
+            // Normalize completed modules to numbers
+            const compNums = comp.map((c: any) => typeof c === 'number' ? c : parseInt(String(c).replace(/\D/g, ''), 10) || 1);
+            setCompletedModules(compNums);
+            const curr = progData.progress.currentModule || 1;
+            setCurrentModuleIndex(Math.max(0, Math.min(curr - 1, (modules.length || 12) - 1)));
 
-          if (progData.progress.masteryTestPassed) {
-            setMasteryResult({
-              score: progData.progress.masteryScore || 12,
-              passed: true,
-              percentage: Math.round(((progData.progress.masteryScore || 12) / 12) * 100),
-              passingScore: 10,
-              message: 'Mastery certification completed. Adviser Workstation unlocked.'
-            });
+            if (progData.progress.masteryTestPassed) {
+              setMasteryResult({
+                score: progData.progress.masteryScore || 12,
+                passed: true,
+                percentage: Math.round(((progData.progress.masteryScore || 12) / 12) * 100),
+                passingScore: 10,
+                message: 'Mastery certification completed. Adviser Workstation unlocked.'
+              });
+            }
           }
         }
       }
     } catch (err) {
       console.error('Error loading course data:', err);
-    } finally {
-      setLoading(false);
     }
   };
 
-  const handleMarkModuleComplete = async (moduleId: number) => {
-    if (!completedModules.includes(moduleId)) {
-      const nextCompleted = [...completedModules, moduleId];
+  const handleMarkModuleComplete = async (moduleOrder: number) => {
+    if (!completedModules.includes(moduleOrder)) {
+      const nextCompleted = Array.from(new Set([...completedModules, moduleOrder]));
       setCompletedModules(nextCompleted);
 
       // Persist to server
@@ -116,8 +129,11 @@ export const AdviserLearningGateway: React.FC<AdviserLearningGatewayProps> = ({
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               mobile,
+              mobileNumber: mobile,
               completedModules: nextCompleted,
-              currentModule: Math.min(moduleId + 1, 12)
+              currentModule: Math.min(moduleOrder + 1, modules.length || 12),
+              moduleId: moduleOrder,
+              completed: true
             })
           });
         } catch (e) {
@@ -133,9 +149,9 @@ export const AdviserLearningGateway: React.FC<AdviserLearningGatewayProps> = ({
     }
   };
 
-  const handleCheckpointSubmit = (moduleId: number) => {
-    if (checkpointAnswers[moduleId] !== undefined) {
-      setCheckpointSubmitted(prev => ({ ...prev, [moduleId]: true }));
+  const handleCheckpointSubmit = (key: string | number) => {
+    if (checkpointAnswers[key] !== undefined) {
+      setCheckpointSubmitted(prev => ({ ...prev, [key]: true }));
     }
   };
 
@@ -143,16 +159,20 @@ export const AdviserLearningGateway: React.FC<AdviserLearningGatewayProps> = ({
     setLoading(true);
     try {
       const res = await fetch('/api/adviser/mastery/questions');
-      const data = await res.json();
-      if (res.ok && data.questions) {
-        setMasteryQuestions(data.questions);
-        setInMasteryMode(true);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.questions && Array.isArray(data.questions)) {
+          setMasteryQuestions(data.questions);
+          setInMasteryMode(true);
+          return;
+        }
       }
     } catch (err) {
       console.error('Failed to load mastery questions:', err);
     } finally {
       setLoading(false);
     }
+    setInMasteryMode(true);
   };
 
   const handleMasterySelect = (questionId: number, optionIdx: number) => {
@@ -163,10 +183,11 @@ export const AdviserLearningGateway: React.FC<AdviserLearningGatewayProps> = ({
   };
 
   const handleMasterySubmit = async () => {
+    const totalQuestions = masteryQuestions.length > 0 ? masteryQuestions.length : 12;
     const totalAnswered = Object.keys(masteryAnswers).length;
-    if (totalAnswered < masteryQuestions.length) {
+    if (totalAnswered < totalQuestions) {
       const confirmIncomplete = window.confirm(
-        `You have answered ${totalAnswered} of ${masteryQuestions.length} questions. Unanswered questions will count as incorrect. Proceed with submission?`
+        `You have answered ${totalAnswered} of ${totalQuestions} questions. Unanswered questions will count as incorrect. Proceed with submission?`
       );
       if (!confirmIncomplete) return;
     }
@@ -178,6 +199,7 @@ export const AdviserLearningGateway: React.FC<AdviserLearningGatewayProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           mobile: effectiveMobile,
+          phoneNumber: effectiveMobile,
           answers: masteryAnswers
         })
       });
@@ -190,6 +212,7 @@ export const AdviserLearningGateway: React.FC<AdviserLearningGatewayProps> = ({
             const updatedUser: UserAccount = {
               ...currentUser,
               accountStatus: 'active',
+              learningCompleted: true,
               isVerified: true
             };
             onCourseCompleted?.(updatedUser);
@@ -206,9 +229,12 @@ export const AdviserLearningGateway: React.FC<AdviserLearningGatewayProps> = ({
     }
   };
 
-  const allModulesCompleted = modules.length > 0 && completedModules.length >= modules.length;
-  const currentModule = modules[currentModuleIndex];
-  const progressPercentage = Math.round((completedModules.length / Math.max(1, modules.length)) * 100);
+  const effectiveModulesList = modules && modules.length > 0 ? modules : ADVISER_LEARNING_MODULES;
+  const currentModule = effectiveModulesList[currentModuleIndex] || effectiveModulesList[0] || ADVISER_LEARNING_MODULES[0];
+  const allModulesCompleted = effectiveModulesList.length > 0 && completedModules.length >= effectiveModulesList.length;
+  const progressPercentage = Math.round((completedModules.length / Math.max(1, effectiveModulesList.length)) * 100);
+  const quizKey = currentModule.order || currentModule.id;
+  const quiz = currentModule.quickKnowledgeCheck;
 
   if (loading) {
     return (
@@ -258,7 +284,7 @@ export const AdviserLearningGateway: React.FC<AdviserLearningGatewayProps> = ({
 
           <button
             onClick={handleExit}
-            className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 transition-all"
+            className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 transition-all cursor-pointer"
           >
             {onClose ? 'Close' : 'Sign Out'}
           </button>
@@ -271,22 +297,22 @@ export const AdviserLearningGateway: React.FC<AdviserLearningGatewayProps> = ({
         <aside className="w-full lg:w-80 bg-slate-900/60 border-r border-slate-800 p-4 overflow-y-auto space-y-2">
           <div className="flex items-center justify-between pb-2 border-b border-slate-800 text-xs font-bold text-slate-400 uppercase tracking-wider">
             <span>Course Curriculum</span>
-            <span>{completedModules.length} / 12</span>
+            <span>{completedModules.length} / {effectiveModulesList.length}</span>
           </div>
 
           <div className="space-y-1.5">
-            {modules.map((m, idx) => {
+            {(effectiveModulesList || []).map((m, idx) => {
               const isCurrent = currentModuleIndex === idx && !inMasteryMode;
-              const isCompleted = completedModules.includes(m.id);
+              const isCompleted = completedModules.includes(m.order) || completedModules.includes(idx + 1);
 
               return (
                 <button
-                  key={m.id}
+                  key={m.id || idx}
                   onClick={() => {
                     setInMasteryMode(false);
                     setCurrentModuleIndex(idx);
                   }}
-                  className={`w-full text-left p-3 rounded-2xl text-xs transition-all flex items-start gap-2.5 ${
+                  className={`w-full text-left p-3 rounded-2xl text-xs transition-all flex items-start gap-2.5 cursor-pointer ${
                     isCurrent
                       ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-950/40 font-bold'
                       : isCompleted
@@ -297,13 +323,13 @@ export const AdviserLearningGateway: React.FC<AdviserLearningGatewayProps> = ({
                   <div className={`w-5 h-5 rounded-lg flex items-center justify-center text-[10px] font-mono font-bold shrink-0 mt-0.5 ${
                     isCompleted ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-400'
                   }`}>
-                    {isCompleted ? <Check className="w-3 h-3 stroke-[3]" /> : m.id}
+                    {isCompleted ? <Check className="w-3 h-3 stroke-[3]" /> : (m.order || idx + 1)}
                   </div>
 
                   <div className="flex-1 min-w-0">
                     <div className="truncate text-xs leading-snug">{m.title}</div>
                     <div className={`text-[10px] mt-0.5 ${isCurrent ? 'text-emerald-100' : 'text-slate-500'}`}>
-                      {m.estimatedDuration}
+                      {m.readingTimeMinutes ? `${m.readingTimeMinutes} mins` : '5 mins'}
                     </div>
                   </div>
                 </button>
@@ -321,7 +347,7 @@ export const AdviserLearningGateway: React.FC<AdviserLearningGatewayProps> = ({
                   }
                 }}
                 disabled={!allModulesCompleted}
-                className={`w-full p-3 rounded-2xl text-xs font-bold transition-all flex items-center justify-between ${
+                className={`w-full p-3 rounded-2xl text-xs font-bold transition-all flex items-center justify-between cursor-pointer ${
                   inMasteryMode
                     ? 'bg-purple-600 text-white shadow-lg'
                     : allModulesCompleted
@@ -353,9 +379,9 @@ export const AdviserLearningGateway: React.FC<AdviserLearningGatewayProps> = ({
                 <div className="p-6 rounded-3xl bg-slate-900/80 border border-slate-800 shadow-xl space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[11px] font-mono font-bold">
-                      Module {currentModule.id} of 12 • {currentModule.estimatedDuration}
+                      Module {currentModule.order || currentModuleIndex + 1} of {effectiveModulesList.length} • {currentModule.readingTimeMinutes || 5} mins
                     </span>
-                    {completedModules.includes(currentModule.id) && (
+                    {(completedModules.includes(currentModule.order) || completedModules.includes(currentModuleIndex + 1)) && (
                       <span className="flex items-center gap-1 text-xs font-bold text-emerald-400">
                         <CheckCircle2 className="w-4 h-4" /> Completed
                       </span>
@@ -365,133 +391,148 @@ export const AdviserLearningGateway: React.FC<AdviserLearningGatewayProps> = ({
                   <h2 className="text-xl font-bold text-white tracking-tight">
                     {currentModule.title}
                   </h2>
+                  {currentModule.subtitle && (
+                    <p className="text-xs font-semibold text-emerald-400">
+                      {currentModule.subtitle}
+                    </p>
+                  )}
                   <p className="text-xs text-slate-300 leading-relaxed">
                     {currentModule.overview}
                   </p>
                 </div>
 
-                {/* Core Agronomic Concepts */}
-                <div className="p-6 rounded-3xl bg-slate-900/60 border border-slate-800 space-y-3">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-2">
-                    <BookOpen className="w-4 h-4" /> Core Agronomic & Technical Principles
-                  </h3>
-                  <div className="space-y-2">
-                    {currentModule.coreConcepts.map((concept, cIdx) => (
-                      <div key={cIdx} className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800/80 text-xs text-slate-300 flex items-start gap-2.5">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0 mt-1.5" />
-                        <span className="leading-relaxed">{concept}</span>
-                      </div>
-                    ))}
+                {/* Key Topics */}
+                {currentModule.keyTopics && currentModule.keyTopics.length > 0 && (
+                  <div className="p-6 rounded-3xl bg-slate-900/60 border border-slate-800 space-y-3">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-2">
+                      <BookOpen className="w-4 h-4" /> Core Agronomic Principles & Topics
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {(currentModule.keyTopics || []).map((topic, tIdx) => (
+                        <div key={tIdx} className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800/80 text-xs text-slate-300 flex items-start gap-2.5">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0 mt-1.5" />
+                          <span className="leading-relaxed font-medium">{topic}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
 
-                {/* Operational Protocols */}
-                <div className="p-6 rounded-3xl bg-slate-900/60 border border-slate-800 space-y-3">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-blue-400 flex items-center gap-2">
-                    <ShieldCheck className="w-4 h-4" /> Standard Operating Protocols for Advisers
-                  </h3>
-                  <div className="space-y-2">
-                    {currentModule.operationalProtocols.map((protocol, pIdx) => (
-                      <div key={pIdx} className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800/80 text-xs text-slate-300 flex items-start gap-2.5">
-                        <span className="w-5 h-5 rounded-lg bg-blue-500/20 text-blue-300 font-mono text-[10px] font-bold flex items-center justify-center shrink-0">
-                          {pIdx + 1}
-                        </span>
-                        <span className="leading-relaxed">{protocol}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                {/* Detailed Sections */}
+                {(currentModule.sections || []).map((section, sIdx) => (
+                  <div key={sIdx} className="p-6 rounded-3xl bg-slate-900/60 border border-slate-800 space-y-3">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-blue-400 flex items-center gap-2">
+                      <ShieldCheck className="w-4 h-4" /> {section.heading}
+                    </h3>
+                    <p className="text-xs text-slate-300 leading-relaxed">
+                      {section.body}
+                    </p>
 
-                {/* Farmer Impact & Safety Notes */}
-                <div className="p-5 rounded-3xl bg-amber-950/20 border border-amber-500/30 text-xs space-y-2">
-                  <div className="flex items-center gap-2 text-amber-300 font-bold">
-                    <AlertCircle className="w-4 h-4" /> Direct Farmer Impact & Field Governance
+                    {section.bulletPoints && section.bulletPoints.length > 0 && (
+                      <div className="space-y-1.5 pt-2">
+                        {(section.bulletPoints || []).map((point, pIdx) => (
+                          <div key={pIdx} className="p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/60 text-xs text-slate-300 flex items-start gap-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0 mt-1.5" />
+                            <span className="leading-relaxed">{point}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {section.adviserTip && (
+                      <div className="p-4 rounded-2xl bg-emerald-950/30 border border-emerald-500/30 text-xs text-emerald-200 flex items-start gap-2.5 mt-3">
+                        <Lightbulb className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                        <div>
+                          <span className="font-bold text-emerald-300 block mb-0.5">Adviser Pro-Tip:</span>
+                          <p className="text-slate-300 text-[11px] leading-relaxed">{section.adviserTip}</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <p className="text-amber-100/80 leading-relaxed">
-                    {currentModule.farmerImpactNotes}
-                  </p>
-                </div>
+                ))}
 
                 {/* Checkpoint Quiz */}
-                <div className="p-6 rounded-3xl bg-slate-900 border border-slate-800 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-purple-400 flex items-center gap-2">
-                      <HelpCircle className="w-4 h-4" /> Module Checkpoint Comprehension Quiz
-                    </h3>
-                  </div>
-
-                  <p className="text-xs font-semibold text-white">
-                    {currentModule.quizQuestion.question}
-                  </p>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {currentModule.quizQuestion.options.map((opt, oIdx) => {
-                      const isSelected = checkpointAnswers[currentModule.id] === oIdx;
-                      const isSubmitted = checkpointSubmitted[currentModule.id];
-                      const isCorrect = oIdx === currentModule.quizQuestion.correctOptionIndex;
-
-                      return (
-                        <button
-                          key={oIdx}
-                          disabled={isSubmitted}
-                          onClick={() => setCheckpointAnswers(prev => ({ ...prev, [currentModule.id]: oIdx }))}
-                          className={`p-3 rounded-2xl text-left text-xs transition-all flex items-start gap-2.5 ${
-                            isSubmitted && isCorrect
-                              ? 'bg-emerald-600/30 border-2 border-emerald-500 text-emerald-200'
-                              : isSubmitted && isSelected && !isCorrect
-                              ? 'bg-rose-600/30 border-2 border-rose-500 text-rose-200'
-                              : isSelected
-                              ? 'bg-purple-600/20 border-2 border-purple-500 text-purple-200 font-semibold'
-                              : 'bg-slate-950 hover:bg-slate-900 border border-slate-800 text-slate-300'
-                          }`}
-                        >
-                          <span className="w-4 h-4 rounded-full bg-slate-800 text-slate-300 flex items-center justify-center text-[10px] shrink-0 mt-0.5">
-                            {String.fromCharCode(65 + oIdx)}
-                          </span>
-                          <span className="leading-snug">{opt}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {/* Explanation after submit */}
-                  {checkpointSubmitted[currentModule.id] && (
-                    <div className="p-3.5 rounded-2xl bg-slate-950 border border-purple-500/30 text-xs text-purple-200 space-y-1">
-                      <span className="font-bold block">💡 Explanation:</span>
-                      <p className="text-slate-300 text-[11px] leading-relaxed">
-                        {currentModule.quizQuestion.explanation}
-                      </p>
+                {quiz && (
+                  <div className="p-6 rounded-3xl bg-slate-900 border border-slate-800 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-purple-400 flex items-center gap-2">
+                        <HelpCircle className="w-4 h-4" /> Module Checkpoint Comprehension Quiz
+                      </h3>
                     </div>
-                  )}
 
-                  {!checkpointSubmitted[currentModule.id] && checkpointAnswers[currentModule.id] !== undefined && (
-                    <button
-                      onClick={() => handleCheckpointSubmit(currentModule.id)}
-                      className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-all"
-                    >
-                      Check Answer
-                    </button>
-                  )}
-                </div>
+                    <p className="text-xs font-semibold text-white">
+                      {quiz.question}
+                    </p>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {(quiz.options || []).map((opt, oIdx) => {
+                        const isSelected = checkpointAnswers[quizKey] === oIdx;
+                        const isSubmitted = checkpointSubmitted[quizKey];
+                        const isCorrect = oIdx === quiz.correctIndex;
+
+                        return (
+                          <button
+                            key={oIdx}
+                            disabled={isSubmitted}
+                            onClick={() => setCheckpointAnswers(prev => ({ ...prev, [quizKey]: oIdx }))}
+                            className={`p-3 rounded-2xl text-left text-xs transition-all flex items-start gap-2.5 cursor-pointer ${
+                              isSubmitted && isCorrect
+                                ? 'bg-emerald-600/30 border-2 border-emerald-500 text-emerald-200'
+                                : isSubmitted && isSelected && !isCorrect
+                                ? 'bg-rose-600/30 border-2 border-rose-500 text-rose-200'
+                                : isSelected
+                                ? 'bg-purple-600/20 border-2 border-purple-500 text-purple-200 font-semibold'
+                                : 'bg-slate-950 hover:bg-slate-900 border border-slate-800 text-slate-300'
+                            }`}
+                          >
+                            <span className="w-4 h-4 rounded-full bg-slate-800 text-slate-300 flex items-center justify-center text-[10px] shrink-0 mt-0.5 font-bold">
+                              {String.fromCharCode(65 + oIdx)}
+                            </span>
+                            <span className="leading-snug">{opt}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Explanation after submit */}
+                    {checkpointSubmitted[quizKey] && (
+                      <div className="p-3.5 rounded-2xl bg-slate-950 border border-purple-500/30 text-xs text-purple-200 space-y-1">
+                        <span className="font-bold block">💡 Explanation:</span>
+                        <p className="text-slate-300 text-[11px] leading-relaxed">
+                          {quiz.explanation}
+                        </p>
+                      </div>
+                    )}
+
+                    {!checkpointSubmitted[quizKey] && checkpointAnswers[quizKey] !== undefined && (
+                      <button
+                        onClick={() => handleCheckpointSubmit(quizKey)}
+                        className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-all cursor-pointer"
+                      >
+                        Check Answer
+                      </button>
+                    )}
+                  </div>
+                )}
 
                 {/* Bottom Navigation / Complete Module Action */}
                 <div className="p-4 rounded-3xl bg-slate-900/80 border border-slate-800 flex items-center justify-between">
                   <button
                     onClick={() => setCurrentModuleIndex(prev => Math.max(0, prev - 1))}
                     disabled={currentModuleIndex === 0}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 disabled:opacity-30"
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 disabled:opacity-30 cursor-pointer"
                   >
                     <ChevronLeft className="w-4 h-4" /> Previous
                   </button>
 
                   <button
-                    onClick={() => handleMarkModuleComplete(currentModule.id)}
+                    onClick={() => handleMarkModuleComplete(currentModule.order || currentModuleIndex + 1)}
                     disabled={savingProgress}
                     className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs font-bold text-white shadow-lg shadow-emerald-950/50 transition-all cursor-pointer"
                   >
                     {savingProgress ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
                     <span>
-                      {completedModules.includes(currentModule.id)
+                      {completedModules.includes(currentModule.order) || completedModules.includes(currentModuleIndex + 1)
                         ? 'Next Module'
                         : 'Mark Complete & Continue'}
                     </span>
@@ -554,9 +595,19 @@ export const AdviserLearningGateway: React.FC<AdviserLearningGatewayProps> = ({
                     </div>
                   </div>
 
-                  {masteryResult.passed && currentUser && (
+                  {masteryResult.passed && (
                     <button
-                      onClick={() => onCourseCompleted(currentUser)}
+                      onClick={() => {
+                        if (currentUser) {
+                          onCourseCompleted?.({
+                            ...currentUser,
+                            accountStatus: 'active',
+                            learningCompleted: true,
+                            isVerified: true
+                          });
+                        }
+                        onCourseComplete?.();
+                      }}
                       className="px-6 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black shadow-lg shadow-emerald-950/50 transition-all cursor-pointer"
                     >
                       🚀 Launch Live Adviser Workstation Dashboard
@@ -568,7 +619,7 @@ export const AdviserLearningGateway: React.FC<AdviserLearningGatewayProps> = ({
               {/* Mastery Questions List */}
               {(!masteryResult || !masteryResult.passed) && (
                 <div className="space-y-4">
-                  {masteryQuestions.map((mq) => {
+                  {(masteryQuestions || []).map((mq) => {
                     const selected = masteryAnswers[mq.id];
                     return (
                       <div key={mq.id} className="p-5 rounded-3xl bg-slate-900 border border-slate-800 space-y-3">
@@ -577,7 +628,7 @@ export const AdviserLearningGateway: React.FC<AdviserLearningGatewayProps> = ({
                             Q{mq.id}
                           </span>
                           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                            {mq.moduleTitle}
+                            {mq.moduleTitle || mq.moduleRef || `Module ${mq.id}`}
                           </span>
                         </div>
 
@@ -586,13 +637,13 @@ export const AdviserLearningGateway: React.FC<AdviserLearningGatewayProps> = ({
                         </p>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          {mq.options.map((opt, oIdx) => {
+                          {(mq.options || []).map((opt, oIdx) => {
                             const isSelected = selected === oIdx;
                             return (
                               <button
                                 key={oIdx}
                                 onClick={() => handleMasterySelect(mq.id, oIdx)}
-                                className={`p-3 rounded-2xl text-left text-xs transition-all flex items-start gap-2.5 ${
+                                className={`p-3 rounded-2xl text-left text-xs transition-all flex items-start gap-2.5 cursor-pointer ${
                                   isSelected
                                     ? 'bg-purple-600/20 border-2 border-purple-500 text-purple-200 font-semibold shadow-md'
                                     : 'bg-slate-950 hover:bg-slate-850 border border-slate-800 text-slate-300'
@@ -614,7 +665,7 @@ export const AdviserLearningGateway: React.FC<AdviserLearningGatewayProps> = ({
 
                   <div className="p-5 rounded-3xl bg-slate-900 border border-slate-800 flex items-center justify-between">
                     <span className="text-xs text-slate-400">
-                      {Object.keys(masteryAnswers).length} of 12 questions answered
+                      {Object.keys(masteryAnswers).length} of {masteryQuestions.length || 12} questions answered
                     </span>
                     <button
                       onClick={handleMasterySubmit}
@@ -634,3 +685,4 @@ export const AdviserLearningGateway: React.FC<AdviserLearningGatewayProps> = ({
     </div>
   );
 };
+

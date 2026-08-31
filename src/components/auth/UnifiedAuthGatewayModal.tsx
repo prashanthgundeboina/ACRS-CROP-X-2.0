@@ -864,24 +864,35 @@ export const UnifiedAuthGatewayModal: React.FC<UnifiedAuthGatewayModalProps> = (
                       <ArrowLeft className="w-4 h-4" />
                       <span>Back</span>
                     </button>
-                    <button
-                      type="button"
-                      disabled={loading}
-                      onClick={handleRegisterFinalSubmit}
-                      className="flex-1 py-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/50 disabled:opacity-50"
-                    >
-                      {loading ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          <span>Provisioning Account...</span>
-                        </>
-                      ) : (
-                        <>
-                          <span>Complete Registration</span>
-                          <CheckCircle2 className="w-4 h-4" />
-                        </>
-                      )}
-                    </button>
+                    {selectedRole === 'farmer_adviser' ? (
+                      <button
+                        type="button"
+                        onClick={() => setShowAdviserOnboarding(true)}
+                        className="flex-1 py-3 rounded-2xl bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-teal-950/50"
+                      >
+                        <span>Continue to Adviser Verification</span>
+                        <ShieldCheck className="w-4 h-4" />
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={loading}
+                        onClick={handleRegisterFinalSubmit}
+                        className="flex-1 py-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/50 disabled:opacity-50"
+                      >
+                        {loading ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <span>Provisioning Account...</span>
+                          </>
+                        ) : (
+                          <>
+                            <span>Complete Registration</span>
+                            <CheckCircle2 className="w-4 h-4" />
+                          </>
+                        )}
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
