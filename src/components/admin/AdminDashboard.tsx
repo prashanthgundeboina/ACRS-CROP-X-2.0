@@ -30,6 +30,8 @@ import { AdminStoreOrdersManager } from './AdminStoreOrdersManager';
 import { AdminBroadcastCenter } from './AdminBroadcastCenter';
 import { AdminOperationalAlertsManager } from './AdminOperationalAlertsManager';
 import { AdminCommerceAnalyticsView } from './AdminCommerceAnalyticsView';
+import { AdminFinancialLedgerView } from './AdminFinancialLedgerView';
+import { AIAutomationCenter } from './AIAutomationCenter';
 
 interface AdminDashboardProps {
   currentUser: UserAccount | null;
@@ -42,6 +44,8 @@ interface AdminDashboardProps {
 
 type AdminTab =
   | 'overview'
+  | 'ai_automation'
+  | 'financial_ledger'
   | 'store_products'
   | 'store_orders'
   | 'store_categories'
@@ -144,6 +148,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   // Nav Items
   const navItems: { id: AdminTab; label: string; icon: any; count?: number; group?: string }[] = [
     { id: 'overview', label: 'Overview', icon: BarChart3 },
+    { id: 'ai_automation', label: 'AI Automation Center', icon: Cpu },
+    { id: 'financial_ledger', label: 'Financial Ledger & Revenue', icon: TrendingUp },
     { id: 'store_products', label: 'Agri Store Products', icon: Package },
     { id: 'store_orders', label: 'Store Orders & Logistics', icon: ShoppingBag },
     { id: 'store_categories', label: 'Store Categories', icon: Layers },
@@ -463,6 +469,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
               </div>
             </div>
+          )}
+
+          {/* TAB: AI AUTOMATION CENTER (PHASE 46.1) */}
+          {activeTab === 'ai_automation' && (
+            <AIAutomationCenter />
           )}
 
           {/* TAB 2: FARMERS */}
@@ -1013,6 +1024,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           {/* TAB: AGRI STORE PRODUCTS (PHASE 44) */}
           {activeTab === 'store_products' && (
             <AdminStoreProductsManager />
+          )}
+
+          {/* TAB: FINANCIAL LEDGER & PLATFORM REVENUE */}
+          {activeTab === 'financial_ledger' && (
+            <AdminFinancialLedgerView onRefresh={loadAllAdminData} />
           )}
 
           {/* TAB: STORE ORDERS & LOGISTICS (PHASE 44) */}

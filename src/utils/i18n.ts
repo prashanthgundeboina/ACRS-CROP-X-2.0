@@ -371,3 +371,50 @@ export function generateCroperXExplanationText(
       return `Hello farmer! I am CroperX, your dedicated AI agriculture agent. Based on your soil parameters of Nitrogen ${nitrogen} ppm, pH ${ph}, Temperature ${temp}°C, and Rainfall ${rain}mm, the top recommended crop for your field is ${topCrop} with a suitability confidence of ${score.toFixed(1)}%. Other optimal crop choices include: ${cropListStr}. Apply balanced N-P-K nutrients and maintain soil moisture for maximum yield harvest.`;
   }
 }
+
+export function getExamVoiceScript(langCode: string, applicantName: string = 'Candidate'): string {
+  switch (langCode) {
+    case 'hi':
+      return `नमस्ते ${applicantName}! क्रोपरएक्स सलाहकार प्रमाणन परीक्षा में आपका स्वागत है। इस परीक्षा में 50 प्रश्न हैं और उत्तीर्ण होने के लिए न्यूनतम 25 अंक आवश्यक हैं। कृपया ध्यान दें: यह परीक्षा पूर्ण-स्क्रीन मोड में और सक्रिय कैमरा तथा माइक्रोफ़ोन की निगरानी में आयोजित की जाएगी। स्क्रीन बदलना, टैब स्विच करना या किसी भी प्रकार की नकल करने पर परीक्षा तुरंत समाप्त कर दी जाएगी। यदि आप तैयार हैं, तो स्टार्ट बटन दबाएं।`;
+    case 'te':
+      return `నమస్కారం ${applicantName}! క్రోపర్ ఎక్స్ అడ్వైజర్ సర్టిఫికేషన్ అసెస్‌మెంట్‌కు స్వాగతం. ఈ పరీక్షలో 50 ప్రశ్నలు ఉన్నాయి, ఉత్తీర్ణత సాధించడానికి కనీసం 25 మార్కులు అవసరం. దయచేసి గమనించండి: పరీక్ష ఫుల్‌స్క్రీన్ మోడ్‌లో, కెమెరా మరియు మైక్రోఫోన్ పర్యవేక్షణలో నిర్వహించబడుతుంది. ట్యాబ్ మార్చడం లేదా కాపీ చేయడం నిషిద్ధం. మీరు సిద్ధంగా ఉంటే స్టార్ట్ బటన్ నొక్కండి.`;
+    case 'ta':
+      return `வணக்கம் ${applicantName}! குரோப்பர்எக்ஸ் ஆலோசகர் சான்றிதழ் தேர்வுக்கு வரவேற்கிறோம். இந்தத் தேர்வில் 50 கேள்விகள் உள்ளன, தேர்ச்சி பெற குறைந்தபட்சம் 25 மதிப்பெண்கள் தேவை. கேமரா மற்றும் மைக்ரோஃபோன் இயக்கப்பட்டிருக்க வேண்டும். திரையை மாற்றுவது அல்லது விதிகளை மீறுவது தேர்வை ரத்து செய்ய வழிவகுக்கும். நீங்கள் தயாராக இருந்தால் தொடங்குங்கள்.`;
+    case 'kn':
+      return `ನಮಸ್ಕಾರ ${applicantName}! ಕ್ರೋಪರ್ ಎಕ್ಸ್ ಸಲಹೆಗಾರ ಪ್ರಮಾಣೀಕರಣ ಪರೀಕ್ಷೆಗೆ ಸುಸ್ವಾಗತ. ಈ ಪರೀಕ್ಷೆಯಲ್ಲಿ 50 ಪ್ರಶ್ನೆಗಳಿವೆ, ಉತ್ತೀರ್ಣರಾಗಲು ಕನಿಷ್ಠ 25 ಅಂಕಗಳು ಅಗತ್ಯವಿದೆ. ಪರೀಕ್ಷೆಯು ಕ್ಯಾಮೆರಾ ಮತ್ತು ಮೈಕ್ರೊಫೋನ್ ನಿಗಾದಲ್ಲಿ ನಡೆಯುತ್ತದೆ. ಟ್ಯಾಬ್ ಬದಲಾಯಿಸುವುದು ಕಟ್ಟುನಿಟ್ಟಾಗಿ ನಿಷೇಧಿಸಲಾಗಿದೆ. ನೀವು ಸಿದ್ಧರಿದ್ದರೆ ಪ್ರಾರಂಭಿಸಿ.`;
+    case 'mr':
+      return `नमस्कार ${applicantName}! क्रोपरएक्स सल्लागार प्रमाणन परीक्षेत आपले स्वागत आहे. या परीक्षेत ५० प्रश्न आहेत आणि उत्तीर्ण होण्यासाठी किमान २५ गुण आवश्यक आहेत. परीक्षा कॅमेरा आणि मायक्रोफोनच्या निगराणीखाली घेतली जाईल. स्क्रीन बदलणे किंवा कॉपी करणे पूर्णपणे निषिद्ध आहे. आपण तयार असल्यास सुरू करा.`;
+    case 'bn':
+      return `নমস্কার ${applicantName}! ক্রোপারএক্স অ্যাডভাইজার সার্টিফিকেশন অ্যাসেসমেন্টে আপনাকে স্বাগতম। এই পরীক্ষায় ৫০টি প্রশ্ন রয়েছে এবং উত্তীর্ণ হতে কমপক্ষে ২৫ নম্বর প্রয়োজন। পরীক্ষাটি ক্যামেরা ও মাইক্রোফোনের সক্রিয় নজরদারিতে পরিচালিত হবে। অন্য ট্যাবে যাওয়া বা অনিয়ম করা নিষিদ্ধ। আপনি প্রস্তুত হলে শুরু করুন।`;
+    case 'gu':
+      return `નમસ્તે ${applicantName}! ક્રોપરએક્સ સલાહકાર પ્રમાણપત્ર પરીક્ષામાં આપનું સ્વાગત છે. આ પરીક્ષામાં 50 પ્રશ્નો છે અને પાસ થવા માટે ઓછામાં ઓછા 25 ગુણ જરૂરી છે. આ પરીક્ષા કેમેરા અને માઇક્રોફોનની દેખરેખ હેઠળ લેવાશે. ટેબ બદલવી કે નકલ કરવી પ્રતિબંધિત છે. જો તમે તૈયાર હોવ તો શરૂ કરો.`;
+    case 'pa':
+      return `ਸਤਿ ਸ਼੍ਰੀ ਅਕਾਲ ${applicantName}! ਕਰੋਪਰਐਕਸ ਸਲਾਹਕਾਰ ਪ੍ਰਮਾਣੀਕਰਨ ਪ੍ਰੀਖਿਆ ਵਿੱਚ ਤੁਹਾਡਾ ਸਵਾਗਤ ਹੈ। ਇਸ ਪ੍ਰੀਖਿਆ ਵਿੱਚ 50 ਸਵਾਲ ਹਨ ਅਤੇ ਪਾਸ ਹੋਣ ਲਈ ਘੱਟੋ-ਘੱਟ 25 ਅੰਕ ਲੋੜੀਂਦੇ ਹਨ। ਪ੍ਰੀਖਿਆ ਕੈਮਰੇ ਅਤੇ ਮਾਈਕ੍ਰੋਫੋਨ ਦੀ ਨਿਗਰਾਨੀ ਹੇਠ ਹੋਵੇਗੀ। ਸਕ੍ਰੀਨ ਬਦਲਣਾ ਜਾਂ ਨਕਲ ਕਰਨਾ ਸਖ਼ਤ ਮਨਾ ਹੈ। ਜੇਕਰ ਤੁਸੀਂ ਤਿਆਰ ਹੋ ਤਾਂ ਸ਼ੁਰੂ ਕਰੋ।`;
+    case 'ml':
+      return `നമസ്കാരം ${applicantName}! ക്രോപ്പർഎക്സ് അഡ്വൈസർ സർട്ടിഫിക്കേഷൻ പരീക്ഷയിലേക്ക് സ്വാഗതം. ഈ പരീക്ഷയിൽ 50 ചോദ്യങ്ങളുണ്ട്, വിജയിക്കാൻ കുറഞ്ഞത് 25 മാർക്ക് ആവശ്യമാണ്. ക്യാമറയും മൈക്രോഫോണും സജീവമായി പ്രവർത്തിക്കണം. സ്ക്രീൻ മാറ്റുകയോ ചട്ടങ്ങൾ ലംഘിക്കുകയോ ചെയ്യുന്നത് പരീക്ഷ റദ്ദാക്കാൻ കാരണമാകും. നിങ്ങൾ തയ്യാറാണെങ്കിൽ ആരംഭിക്കുക.`;
+    default:
+      return `Welcome ${applicantName} to the CroperX Agronomist Certification Assessment. This exam consists of 50 agronomic questions and requires a minimum passing score of 25 out of 50. Please note that this session is proctored in dedicated full-screen mode with continuous camera and microphone monitoring. Switching tabs, copying text, or leaving fullscreen is strictly prohibited and governed by a 1-warning security policy. If you understand and accept these requirements, click Start Assessment.`;
+  }
+}
+
+export function getDeliveryVoiceAnnouncement(langCode: string, actionType: string, details?: any): string {
+  switch (langCode) {
+    case 'hi':
+      if (actionType === 'NEW_JOB') return `नई डिलीवरी असाइनमेंट उपलब्ध है! ${details?.pickup || 'एग्री डिपो'} से ${details?.drop || 'खेत'} तक, दूरी ${details?.distance || '18'} किलोमीटर, अनुमानित कमाई ₹${details?.payout || '300'}।`;
+      if (actionType === 'ARRIVED_PICKUP') return `आप पिकअप हब पर पहुँच गए हैं। कृपया ऑर्डर सामग्री और पैकेज सील की पुष्टि करें।`;
+      if (actionType === 'ARRIVED_DESTINATION') return `आप किसान के खेत पर पहुँच गए हैं। डिलीवरी पूरी करने के लिए किसान से 4 अंकों का ओटीपी प्राप्त करें।`;
+      if (actionType === 'DELIVERED') return `डिलीवरी सफलतापूर्वक संपन्न हुई! आपके वॉलेट में ₹${details?.payout || '300'} जोड़ दिए गए हैं।`;
+      return `क्रोपरएक्स डिलीवरी कमांड सेंटर सक्रिय है।`;
+    case 'te':
+      if (actionType === 'NEW_JOB') return `కొత్త డెలివరీ జాబ్ అందుబాటులో ఉంది! దూరం ${details?.distance || '18'} కి.మీ, సంపాదన ₹${details?.payout || '300'}.`;
+      if (actionType === 'ARRIVED_DESTINATION') return `మీరు రైతు పొలానికి చేరుకున్నారు. దయచేసి 4 అంకెల ఓటీపీని ధృవీకరించండి.`;
+      return `క్రోపర్ ఎక్స్ డెలివరీ కమాండ్ సెంటర్ సక్రియం.`;
+    default:
+      if (actionType === 'NEW_JOB') return `New delivery job available! From ${details?.pickup || 'Agri Depot'} to ${details?.drop || 'Farm Gate'}. Distance: ${details?.distance || '18'} km. Estimated earnings: ₹${details?.payout || '300'}.`;
+      if (actionType === 'ARRIVED_PICKUP') return `Arrived at pickup depot. Please verify package contents and seal integrity.`;
+      if (actionType === 'ARRIVED_DESTINATION') return `Arrived at farm destination. Please collect the 4-digit verification OTP from the farmer.`;
+      if (actionType === 'DELIVERED') return `Delivery completed successfully! ₹${details?.payout || '300'} has been credited to your CroperX Wallet.`;
+      return `CroperX Delivery Command Center is active.`;
+  }
+}
+

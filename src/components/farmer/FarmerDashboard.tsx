@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Camera, Mic, PhoneCall, CloudRain, Sprout, CheckCircle2, AlertTriangle, AlertCircle, HelpCircle, Globe, User, ChevronRight, Sparkles, Sun, Droplets, ArrowRight, ShieldCheck, X, Users, MapPin, MessageCircle, Siren } from 'lucide-react';
+import { Camera, Mic, PhoneCall, CloudRain, Sprout, CheckCircle2, AlertTriangle, AlertCircle, HelpCircle, Globe, User, ChevronRight, Sparkles, Sun, Droplets, ArrowRight, ShieldCheck, X, Users, MapPin, MessageCircle, Siren, Bot } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { FarmerProfile, UserRole, UserAccount, FarmZone, SoilData, FarmerSimpleCropResult, FarmerLocationState, NearbyAdviser } from '../../types';
 import { FarmerCameraView } from './FarmerCameraView';
@@ -15,6 +15,7 @@ import { Farmer3DActionGrid } from './Farmer3DActionGrid';
 import { InstagramAgriChat } from '../chat/InstagramAgriChat';
 import { GlobalAccountMenu } from '../account/GlobalAccountMenu';
 import { FarmerAgriStore } from './FarmerAgriStore';
+import { FarmerAIAdviser } from './ai/FarmerAIAdviser';
 import { ShoppingBag } from 'lucide-react';
 
 interface FarmerDashboardProps {
@@ -68,7 +69,7 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
   const primaryCrop = farmerProfile.preferredCropCycle?.split('→')?.[0]?.trim() || 'Wheat';
   const profilePhoto = currentUser?.profileImage || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80';
 
-  const [activeDashboardTab, setActiveDashboardTab] = useState<'overview' | 'chat' | 'nearby_advisers'>('overview');
+  const [activeDashboardTab, setActiveDashboardTab] = useState<'overview' | 'ai_adviser' | 'chat' | 'nearby_advisers'>('overview');
   const [showChatModal, setShowChatModal] = useState(false);
   const [farmerLocationState, setFarmerLocationState] = useState<FarmerLocationState>({
     permission: 'unknown',
@@ -236,11 +237,11 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
         )}
 
         {/* Top Mode Selector Tabs */}
-        <div className="flex items-center p-1 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+        <div className="flex items-center p-1 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm overflow-x-auto">
           <button
             id="tab-farm-overview"
             onClick={() => setActiveDashboardTab('overview')}
-            className={`flex-1 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-1.5 sm:gap-2 ${
+            className={`flex-1 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-1.5 sm:gap-2 whitespace-nowrap ${
               activeDashboardTab === 'overview'
                 ? 'bg-emerald-600 text-white shadow-md'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
@@ -251,9 +252,25 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
           </button>
 
           <button
+            id="tab-farm-ai-adviser"
+            onClick={() => setActiveDashboardTab('ai_adviser')}
+            className={`flex-1 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-1.5 sm:gap-2 whitespace-nowrap ${
+              activeDashboardTab === 'ai_adviser'
+                ? 'bg-gradient-to-r from-emerald-600 to-teal-500 text-white shadow-md'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <Bot className="w-4 h-4 text-emerald-400 inline" />
+            <span>{language === 'hi' ? 'एआई सलाहकार' : 'AI Adviser'}</span>
+            <span className="hidden sm:inline-block text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold">
+              24/7
+            </span>
+          </button>
+
+          <button
             id="tab-farm-chat"
             onClick={() => setActiveDashboardTab('chat')}
-            className={`flex-1 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-1.5 sm:gap-2 ${
+            className={`flex-1 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-1.5 sm:gap-2 whitespace-nowrap ${
               activeDashboardTab === 'chat'
                 ? 'bg-gradient-to-r from-pink-600 via-rose-600 to-indigo-600 text-white shadow-md'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
@@ -269,7 +286,7 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
           <button
             id="tab-nearby-advisers"
             onClick={() => setActiveDashboardTab('nearby_advisers')}
-            className={`flex-1 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-1.5 sm:gap-2 ${
+            className={`flex-1 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-1.5 sm:gap-2 whitespace-nowrap ${
               activeDashboardTab === 'nearby_advisers'
                 ? 'bg-emerald-600 text-white shadow-md'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
@@ -283,7 +300,21 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
           </button>
         </div>
 
-        {activeDashboardTab === 'chat' ? (
+        {activeDashboardTab === 'ai_adviser' ? (
+          /* Phase 46.1: Dedicated Autonomous AI Adviser & Farm Intelligence View */
+          <FarmerAIAdviser
+            farmer={{
+              id: currentUser?.id || 'usr_demo_croperx',
+              name: farmerName,
+              phoneNumber: currentUser?.phoneNumber,
+              location: farmLocation,
+              primaryCrop: primaryCrop,
+              farmSizeAcres: Number(farmerProfile.farmAreaSize) || 3.0,
+              profileImage: profilePhoto
+            }}
+            onCallHumanAdviser={() => setShowAdviserCall(true)}
+          />
+        ) : activeDashboardTab === 'chat' ? (
           /* Instagram Agri-Chat Direct Messaging Tab */
           <InstagramAgriChat
             currentUserId={currentUser?.id || 'usr_demo_croperx'}

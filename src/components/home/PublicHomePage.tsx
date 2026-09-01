@@ -829,7 +829,49 @@ export const PublicHomePage: React.FC<PublicHomePageProps> = ({
             </div>
           </div>
 
-          {/* Card 3: Administrator */}
+          {/* Card 3: Delivery Partner */}
+          <div className="p-8 rounded-3xl bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 hover:border-emerald-500/50 flex flex-col justify-between space-y-6 transition-all group shadow-xl">
+            <div className="space-y-4">
+              <div className="w-14 h-14 rounded-2xl bg-emerald-950 border border-emerald-500/30 flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">
+                🚚
+              </div>
+              <div className="flex items-center justify-between">
+                <h3 className="text-xl font-bold text-white">For Delivery Fleet</h3>
+                <span className="text-[10px] px-2 py-0.5 rounded-md bg-emerald-900/50 text-emerald-300 font-bold border border-emerald-500/30">Agri Logistics</span>
+              </div>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Agricultural logistics command center with turn-by-turn rural navigation, regional voice announcements, OTP verification & instant payouts.
+              </p>
+              <ul className="space-y-2 text-xs text-slate-300 pt-2 font-medium">
+                <li className="flex items-center gap-2 text-emerald-400">
+                  <CheckCircle2 className="w-4 h-4 shrink-0" />
+                  <span>Interactive dispatch queue & job acceptance</span>
+                </li>
+                <li className="flex items-center gap-2 text-emerald-400">
+                  <CheckCircle2 className="w-4 h-4 shrink-0" />
+                  <span>Multilingual speech synthesis announcements</span>
+                </li>
+                <li className="flex items-center gap-2 text-emerald-400">
+                  <CheckCircle2 className="w-4 h-4 shrink-0" />
+                  <span>OTP / QR code proof-of-delivery verification</span>
+                </li>
+              </ul>
+            </div>
+
+            <button
+              id="role-btn-delivery"
+              onClick={() => {
+                if (currentUser && userRole === 'delivery_partner') onOpenDashboard('delivery_partner');
+                else onOpenRegister('delivery_partner');
+              }}
+              className="w-full py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/50 transition-all cursor-pointer"
+            >
+              <span>{currentUser && userRole === 'delivery_partner' ? "Open Fleet Dashboard" : "I'm a Delivery Partner"}</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Card 4: Administrator */}
           <div className="p-8 rounded-3xl bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 hover:border-purple-500/50 flex flex-col justify-between space-y-6 transition-all group shadow-xl">
             <div className="space-y-4">
               <div className="w-14 h-14 rounded-2xl bg-purple-950 border border-purple-500/30 flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">

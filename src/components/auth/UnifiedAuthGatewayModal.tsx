@@ -56,8 +56,14 @@ export const UnifiedAuthGatewayModal: React.FC<UnifiedAuthGatewayModalProps> = (
   const [showRegPassword, setShowRegPassword] = useState(false);
   const [regOtp, setRegOtp] = useState('');
   const [regOtpSent, setRegOtpSent] = useState(false);
-  const [selectedRole, setSelectedRole] = useState<'farmer' | 'farmer_adviser' | 'customer'>(
-    initialRole === 'farmer_adviser' ? 'farmer_adviser' : initialRole === 'customer' ? 'customer' : 'farmer'
+  const [selectedRole, setSelectedRole] = useState<'farmer' | 'farmer_adviser' | 'customer' | 'delivery_partner'>(
+    initialRole === 'farmer_adviser'
+      ? 'farmer_adviser'
+      : initialRole === 'customer'
+      ? 'customer'
+      : initialRole === 'delivery_partner'
+      ? 'delivery_partner'
+      : 'farmer'
   );
   
   // Farmer Specific Profile State
@@ -850,6 +856,31 @@ export const UnifiedAuthGatewayModal: React.FC<UnifiedAuthGatewayModalProps> = (
                         </div>
                         <p className="text-[11px] text-slate-400 mt-0.5">
                           Commercial agricultural procurement, contract farming orders & commodity hub tracking.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Role Option 4: Delivery / Fleet Partner */}
+                  <div
+                    onClick={() => setSelectedRole('delivery_partner')}
+                    className={`p-3.5 rounded-2xl border cursor-pointer transition-all ${
+                      selectedRole === 'delivery_partner'
+                        ? 'bg-emerald-950/40 border-emerald-500 ring-1 ring-emerald-500/50'
+                        : 'bg-slate-950 border-slate-800 hover:border-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="text-2xl p-1 bg-emerald-900/40 rounded-xl">🚚</div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-xs font-bold text-white">Logistics & Delivery Partner</h4>
+                          {selectedRole === 'delivery_partner' && (
+                            <span className="w-4 h-4 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center text-[10px] font-black">✓</span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          Rural input transport, bio-fertilizer dispatch, route audio guidance & verified payouts.
                         </p>
                       </div>
                     </div>

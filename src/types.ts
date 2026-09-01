@@ -86,7 +86,7 @@ export interface MarketItemInsight {
   marketRiskLevel: 'Low Risk' | 'Medium Risk' | 'High Opportunity';
 }
 
-export type UserRole = 'farmer' | 'farmer_adviser' | 'customer' | 'admin';
+export type UserRole = 'farmer' | 'farmer_adviser' | 'customer' | 'admin' | 'delivery_partner';
 
 export interface UserAccount {
   id: string;
@@ -962,6 +962,441 @@ export interface ChatConversation {
     timestamp: number;
   };
 }
+
+// ============================================================
+// PHASE 44/45: PROCTORED ADVISER EXAM TYPES
+// ============================================================
+
+export type ExamSecurityEventType =
+  | 'TAB_SWITCH_DETECTED'
+  | 'WINDOW_BLUR'
+  | 'FULLSCREEN_EXIT'
+  | 'CLIPBOARD_COPY_ATTEMPT'
+  | 'CLIPBOARD_CUT_ATTEMPT'
+  | 'CLIPBOARD_PASTE_ATTEMPT'
+  | 'CONTEXT_MENU_OPEN'
+  | 'KEYBOARD_SHORTCUT'
+  | 'FACE_MISSING'
+  | 'MULTIPLE_FACES'
+  | 'CAMERA_DISCONNECTED'
+  | 'MICROPHONE_DISCONNECTED';
+
+export type ExamSecuritySeverity = 'INFO' | 'WARNING' | 'CRITICAL';
+
+export type ExamState =
+  | 'NOT_STARTED'
+  | 'PERMISSION_PENDING'
+  | 'DEVICE_CHECK'
+  | 'READY'
+  | 'IN_PROGRESS'
+  | 'WARNING'
+  | 'TERMINATED_SECURITY'
+  | 'SUBMITTED'
+  | 'EVALUATED'
+  | 'PASSED'
+  | 'FAILED'
+  | 'REATTEMPT_SCHEDULED';
+
+export interface ExamSecurityEvent {
+  id: string;
+  assessmentId?: string;
+  mobile: string;
+  adviserId?: string;
+  eventType: ExamSecurityEventType | string;
+  severity: ExamSecuritySeverity;
+  metadata?: Record<string, any>;
+  timestamp: string;
+  serverReceivedAt?: string;
+}
+
+export interface ExamViolationRecord {
+  violationCount: number;
+  warningLimit: number;
+  terminated: boolean;
+  terminationReason?: string;
+  terminatedAt?: string;
+  nextEligibleAt?: string;
+  warnings: Array<{
+    eventType: string;
+    message: string;
+    timestamp: string;
+  }>;
+}
+
+// ============================================================
+// PHASE 44/45: CROPERX DELIVERY COMMAND CENTER TYPES
+// ============================================================
+
+export type DeliveryPartnerLiveStatus =
+  | 'OFFLINE'
+  | 'ONLINE'
+  | 'AVAILABLE'
+  | 'ON_PICKUP'
+  | 'AT_PICKUP'
+  | 'IN_TRANSIT'
+  | 'AT_DESTINATION'
+  | 'DELIVERED'
+  | 'ISSUE_REPORTED';
+
+export type DeliveryJobStatus =
+  | 'PENDING_ASSIGNMENT'
+  | 'ASSIGNED'
+  | 'ACCEPTED'
+  | 'REJECTED'
+  | 'ARRIVED_PICKUP'
+  | 'PICKED_UP'
+  | 'IN_TRANSIT'
+  | 'ARRIVED_DESTINATION'
+  | 'DELIVERED'
+  | 'FAILED'
+  | 'CANCELLED';
+
+export interface DeliveryJobItem {
+  productId: string;
+  productName: string;
+  category: string;
+  quantity: number;
+  weightKg?: number;
+  price: number;
+  image?: string;
+  handlingInstructions?: string;
+}
+
+export interface DeliveryJob {
+  id: string;
+  orderId: string;
+  partnerId?: string;
+  partnerName?: string;
+  partnerPhone?: string;
+  status: DeliveryJobStatus;
+  pickupLocation: {
+    name: string;
+    hubType: 'Agri Store Depot' | 'Wholesale Mandi Hub' | 'Certified Nursery' | 'Fertilizer Warehouse';
+    address: string;
+    landmark?: string;
+    district: string;
+    latitude: number;
+    longitude: number;
+    contactPerson: string;
+    contactPhone: string;
+  };
+  dropLocation: {
+    farmerName: string;
+    farmName: string;
+    address: string;
+    village: string;
+    district: string;
+    pinCode?: string;
+    latitude: number;
+    longitude: number;
+    farmerPhone: string;
+    farmGateInstructions?: string;
+    ruralRoadWarning?: string;
+  };
+  items: DeliveryJobItem[];
+  totalDistanceKm: number;
+  estimatedDurationMins: number;
+  payout: {
+    baseFare: number;
+    distanceIncentive: number;
+    peakBonus: number;
+    batchBonus: number;
+    onTimeBonus: number;
+    totalEarnings: number;
+  };
+  verificationOtp?: string;
+  proofOfDelivery?: {
+    method: 'OTP' | 'QR' | 'SIGNATURE_AND_PHOTO';
+    verifiedAt: string;
+    otpCode?: string;
+    recipientName?: string;
+    notes?: string;
+    gpsLocation?: { lat: number; lng: number };
+    photoUrl?: string;
+  };
+  issueReported?: {
+    issueType: 'ROAD_BLOCKED' | 'DAMAGED_PACKAGE' | 'FARMER_UNAVAILABLE' | 'WEATHER_HAZARD' | 'WRONG_LOCATION' | 'OTHER';
+    description: string;
+    reportedAt: string;
+    resolved: boolean;
+  };
+  timeline: Array<{
+    status: string;
+    timestamp: string;
+    locationNote?: string;
+  }>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DeliveryPartnerProfile {
+  id: string;
+  userId: string;
+  name: string;
+  phoneNumber: string;
+  vehicleType: 'Two Wheeler (Bike/Scooter)' | 'Three Wheeler (Auto Cargo)' | 'Four Wheeler (Pick-up Van)' | 'Tractor Trailer';
+  vehicleNumber: string;
+  licenseNumber: string;
+  status: DeliveryPartnerLiveStatus;
+  currentLocation?: {
+    latitude: number;
+    longitude: number;
+    heading?: number;
+    accuracy?: number;
+    updatedAt: string;
+  };
+  serviceZone: string;
+  activeJobId?: string;
+  todayStats: {
+    earnings: number;
+    completedDeliveries: number;
+    distanceTraveledKm: number;
+    onTimePercentage: number;
+    customerRating: number;
+    hoursOnline: number;
+  };
+  lifetimeStats: {
+    totalDeliveries: number;
+    totalEarnings: number;
+    rating: number;
+    ratingsCount: number;
+  };
+}
+
+export interface DeliveryEarningsLedger {
+  partnerId: string;
+  period: string; // e.g. "Today", "This Week", "August 2026"
+  totalNetEarnings: number;
+  pendingSettlement: number;
+  settledAmount: number;
+  earningsBreakdown: {
+    baseFares: number;
+    distanceIncentives: number;
+    peakSurges: number;
+    onTimeBonuses: number;
+    batchBonuses: number;
+    tips: number;
+    deductions: number;
+  };
+  recentTransactions: Array<{
+    id: string;
+    jobId: string;
+    description: string;
+    amount: number;
+    type: 'CREDIT' | 'SETTLEMENT_PAYOUT' | 'ADJUSTMENT';
+    status: 'COMPLETED' | 'PENDING' | 'PROCESSING';
+    timestamp: string;
+  }>;
+}
+
+// ============================================================
+// PHASE 44/45: FINANCIAL LEDGER & PLATFORM REVENUE TYPES
+// ============================================================
+
+export type FinancialEntityType =
+  | 'order'
+  | 'delivery_fee'
+  | 'partner_payout'
+  | 'adviser_payout'
+  | 'platform_fee'
+  | 'supplier_commission'
+  | 'refund'
+  | 'adjustment'
+  | 'settlement';
+
+export type FinancialEntryType = 'CREDIT' | 'DEBIT';
+
+export interface FinancialLedgerEntry {
+  id: string;
+  transactionId: string;
+  entityType: FinancialEntityType;
+  entityId: string;
+  entryType: FinancialEntryType;
+  amount: number;
+  currency: string;
+  description: string;
+  reference?: string;
+  createdBy: string;
+  metadata?: Record<string, any>;
+  timestamp: string;
+}
+
+export interface PlatformRevenueMetrics {
+  gmv: number;
+  netMerchandiseRevenue: number;
+  platformFeeRevenue: number;
+  deliveryRevenue: number;
+  deliveryPartnerPayouts: number;
+  adviserPayouts: number;
+  supplierCommissions: number;
+  refunds: number;
+  netContribution: number;
+  activeFarmers: number;
+  activeAdvisers: number;
+  activeDeliveryPartners: number;
+  averageOrderValue: number;
+  repeatPurchaseRate: number;
+  dailyRevenue: Array<{
+    date: string;
+    gmv: number;
+    revenue: number;
+    orders: number;
+  }>;
+  categoryBreakdown: Array<{
+    category: string;
+    revenue: number;
+    percentage: number;
+  }>;
+  regionalBreakdown: Array<{
+    region: string;
+    gmv: number;
+    orderCount: number;
+  }>;
+}
+
+// ============================================================================
+// PHASE 46.1: AUTONOMOUS AI AGRICULTURE NETWORK FOUNDATION TYPES
+// ============================================================================
+
+export type AIAutomationMode =
+  | 'MANUAL'
+  | 'AI_ASSIST'
+  | 'HYBRID'
+  | 'AUTONOMOUS'
+  | 'PROACTIVE_AUTONOMOUS';
+
+export type AIAgentStatus = 'ACTIVE' | 'PAUSED' | 'ESCALATED' | 'DISABLED';
+
+export type AIRiskLevel = 'LOW' | 'MEDIUM' | 'HIGH';
+
+export type AIIntentCategory =
+  | 'CROP_HEALTH'
+  | 'SOIL'
+  | 'IRRIGATION'
+  | 'WEATHER'
+  | 'PEST'
+  | 'FARM_ECONOMICS'
+  | 'AGRI_STORE'
+  | 'GENERAL_ADVISORY';
+
+export type AIMemoryType =
+  | 'identity'
+  | 'farm'
+  | 'crops'
+  | 'actions'
+  | 'conversation'
+  | 'intelligence';
+
+export interface FarmerAIAgent {
+  id: string;
+  farmerId: string;
+  farmerName: string;
+  phoneNumber?: string;
+  location?: string;
+  primaryCrop?: string;
+  farmSizeAcres?: number;
+  status: AIAgentStatus;
+  automationMode: AIAutomationMode;
+  language: string;
+  confidenceScore: number;
+  humanEscalationRequired: boolean;
+  lastInteractionAt?: string;
+  lastAnalysisAt?: string;
+  activeIssuesCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FarmerAIMemory {
+  id: string;
+  farmerId: string;
+  agentId: string;
+  memoryType: AIMemoryType;
+  memoryKey: string;
+  memoryValue: any;
+  source: string;
+  confidence: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AIAgentInteraction {
+  id: string;
+  farmerId: string;
+  agentId: string;
+  intent: AIIntentCategory;
+  riskLevel: AIRiskLevel;
+  confidence: number;
+  inputSummary: string;
+  outputSummary: string;
+  recommendedActions?: string[];
+  recommendedProducts?: Array<{ id: string; name: string; price: number; reason: string }>;
+  escalated: boolean;
+  escalationReason?: string;
+  createdAt: string;
+}
+
+export interface AIEscalation {
+  id: string;
+  farmerId: string;
+  farmerName: string;
+  farmerPhone?: string;
+  agentId: string;
+  reason: string;
+  status: 'PENDING' | 'ASSIGNED' | 'RESOLVED' | 'DISMISSED';
+  assignedAdviserId?: string;
+  assignedAdviserName?: string;
+  contextSummary: string;
+  createdAt: string;
+  resolvedAt?: string;
+}
+
+export interface AIAutomationSettings {
+  id: string;
+  automationEnabled: boolean;
+  automationMode: AIAutomationMode;
+  emergencyStop: boolean;
+  totalActiveAgents: number;
+  pausedAgents: number;
+  consultationsToday: number;
+  escalationsToday: number;
+  averageConfidence: number;
+  highRiskBlockedToday: number;
+  updatedBy?: string;
+  updatedAt: string;
+}
+
+export interface AIAuditEvent {
+  id: string;
+  eventType:
+    | 'AUTOMATION_ENABLED'
+    | 'AUTOMATION_DISABLED'
+    | 'AUTOMATION_MODE_CHANGED'
+    | 'AGENT_PROVISIONED'
+    | 'AGENT_PAUSED'
+    | 'AGENT_RESUMED'
+    | 'AI_RECOMMENDATION_CREATED'
+    | 'AI_ACTION_BLOCKED'
+    | 'HUMAN_ESCALATION_CREATED'
+    | 'EMERGENCY_KILL_SWITCH_ACTIVATED';
+  actorId: string;
+  actorRole: string;
+  targetId?: string;
+  details: Record<string, any>;
+  timestamp: string;
+}
+
+export interface AIInsightSummary {
+  farmHealthScore: number;
+  riskCount: number;
+  topRisks: Array<{ title: string; severity: AIRiskLevel; advice: string }>;
+  weatherAlert?: { title: string; advisory: string };
+  irrigationRecommendation?: { action: string; waterSchedule: string };
+  soilConditionSummary?: { status: string; nitrogen: string; phosphorus: string; potassium: string };
+  recentInteractions: AIAgentInteraction[];
+}
+
+
 
 
 

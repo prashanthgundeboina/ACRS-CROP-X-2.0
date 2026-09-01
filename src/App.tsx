@@ -128,6 +128,7 @@ import { AdviserOnboardingGateway } from './components/adviser/AdviserOnboarding
 import { AdviserLearningGateway } from './components/adviser/AdviserLearningGateway';
 import { AdviserVerificationGateway } from './components/adviser/AdviserVerificationGateway';
 import { AdviserActivationModal } from './components/adviser/AdviserActivationModal';
+import { DeliveryPartnerDashboard } from './components/delivery/DeliveryPartnerDashboard';
 import {
   updateAppTitleAndRoute,
   openRoleWorkspaceTab,
@@ -1277,6 +1278,104 @@ function AppContent() {
             setShowRoleModal(false);
           }}
           canDismiss={true}
+        />
+      </div>
+    );
+  }
+
+  // Dedicated Delivery Partner Mode (CroperX Agri Logistics & Fleet Command)
+  if (
+    ((currentUser?.role === 'delivery_partner' || userRole === 'delivery_partner') && currentView === 'delivery_partner') ||
+    (currentUser?.role === 'admin' && adminPreviewRole === 'delivery_partner')
+  ) {
+    return (
+      <div className="min-h-screen bg-stone-950 text-stone-100 font-sans p-4 sm:p-6 lg:p-8">
+        {/* Security Alert Toast */}
+        {securityAlert && (
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999] max-w-md w-[92%] sm:w-auto shadow-2xl rounded-2xl bg-amber-950/95 text-amber-100 border border-amber-500/60 px-4 py-3 flex items-center gap-3 backdrop-blur-md">
+            <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-300 flex items-center justify-center shrink-0">
+              <AlertTriangle className="w-4 h-4 text-amber-400" />
+            </div>
+            <div className="flex-1 text-xs font-semibold leading-snug">
+              {securityAlert}
+            </div>
+            <button
+              onClick={() => setSecurityAlert(null)}
+              className="p-1 text-amber-400 hover:text-white rounded-lg hover:bg-amber-800/40 transition-colors shrink-0 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        {currentUser?.role === 'admin' && adminPreviewRole === 'delivery_partner' && (
+          <AdminPreviewBanner
+            previewRole="farmer"
+            onExitPreview={() => setAdminPreviewRole(null)}
+          />
+        )}
+
+        <DeliveryPartnerDashboard
+          partnerMobile={currentUser?.phoneNumber || '9876543210'}
+          partnerName={currentUser?.farmerName || 'Fleet Partner'}
+          currentUser={currentUser}
+          onOpenProfile={() => setShowProfileModal(true)}
+          onOpenSettings={(sec) => {
+            setSettingsSection(sec);
+            setShowSettingsModal(true);
+          }}
+          onLogout={() => setShowLogoutModal(true)}
+          onBackToHome={() => {
+            setCurrentView('home');
+            updateAppTitleAndRoute('home');
+          }}
+        />
+
+        {/* Unified Profile Modal for Delivery Partner */}
+        <UnifiedProfileModal
+          isOpen={showProfileModal}
+          onClose={() => setShowProfileModal(false)}
+          currentUser={currentUser}
+          currentRole="delivery_partner"
+          farmerProfile={farmerProfile}
+          onProfileUpdated={handleProfileUpdated}
+          onOpenChangePassword={() => {
+            setShowProfileModal(false);
+            setShowChangePasswordModal(true);
+          }}
+          onLogoutAllSessions={() => handleConfirmLogout(true)}
+        />
+
+        {/* Unified Settings Modal for Delivery Partner */}
+        <UnifiedSettingsModal
+          isOpen={showSettingsModal}
+          onClose={() => setShowSettingsModal(false)}
+          currentRole="delivery_partner"
+          phoneNumber={currentUser?.phoneNumber}
+          initialSection={settingsSection}
+          onOpenChangePassword={() => {
+            setShowSettingsModal(false);
+            setShowChangePasswordModal(true);
+          }}
+          onLogoutAllSessions={() => handleConfirmLogout(true)}
+          onLanguageChange={(lang) => setLanguage(lang as any)}
+        />
+
+        {/* Change Password Modal */}
+        <ChangePasswordModal
+          isOpen={showChangePasswordModal}
+          onClose={() => setShowChangePasswordModal(false)}
+          phoneNumber={currentUser?.phoneNumber}
+          role="delivery_partner"
+        />
+
+        {/* Secure Logout Confirmation Modal */}
+        <SecureLogoutModal
+          isOpen={showLogoutModal}
+          onClose={() => setShowLogoutModal(false)}
+          role="delivery_partner"
+          userName={currentUser?.farmerName || 'Fleet Partner'}
+          onConfirmLogout={handleConfirmLogout}
         />
       </div>
     );
