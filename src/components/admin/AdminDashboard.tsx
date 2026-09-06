@@ -187,11 +187,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-[10px] font-mono font-bold text-emerald-400">
                 SYSTEM ADMIN
               </span>
-              {(currentUser?.isDemoAdmin || currentUser?.phoneNumber === '00110099') && (
-                <span className="px-2 py-0.5 rounded-full bg-purple-500/20 border border-purple-500/40 text-[10px] font-mono font-bold text-purple-300 animate-pulse">
-                  DEMO ADMIN (SIH Test Mode)
-                </span>
-              )}
             </div>
             <p className="text-xs text-slate-400 font-medium">
               Enterprise Agricultural Operations & Governance Control Center

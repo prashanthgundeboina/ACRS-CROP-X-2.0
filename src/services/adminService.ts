@@ -235,20 +235,7 @@ export async function fetchAdminLiveSessions(): Promise<any[]> {
     return data.liveSessions || [];
   } catch (err: any) {
     if (err.message === 'Administrator access required.') throw err;
-    return [
-      {
-        callId: "call-demo-active",
-        farmerName: "Ramesh Kumar",
-        farmName: "Green Valley Farm",
-        crop: "Wheat (Canopy Scan)",
-        status: "ACTIVE",
-        createdAt: Date.now() - 1000 * 180,
-        connectedAt: Date.now() - 1000 * 180,
-        durationSec: 180,
-        adviserName: "Dr. Anand Sharma",
-        privacyCompliant: true
-      }
-    ];
+    return [];
   }
 }
 

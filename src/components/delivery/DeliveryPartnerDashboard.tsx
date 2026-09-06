@@ -106,35 +106,7 @@ export const DeliveryPartnerDashboard: React.FC<DeliveryPartnerDashboardProps> =
         }
       }
     } catch (e) {
-      // Fallback demo job for interactive exploration
-      if (!activeJob) {
-        setActiveJob({
-          id: 'JOB-DLV-8821',
-          orderId: 'ORD-98234-AGRI',
-          partnerMobile,
-          pickupLocation: {
-            address: 'CroperX Regional Hub #4, Guntur Highway Depot, Andhra Pradesh',
-            contactPerson: 'Ramesh Agri Seeds Depot',
-            contactPhone: '+91 98480 22334'
-          },
-          dropLocation: {
-            address: 'Farm Plot #14, Nandigama Village, Krishna District',
-            recipientName: 'Koteswara Rao (Farmer)',
-            recipientPhone: '+91 94401 55667'
-          },
-          status: 'ACCEPTED',
-          distanceKm: 14.8,
-          deliveryFee: 320,
-          tip: 50,
-          packageDetails: {
-            weightKg: 12.5,
-            itemsSummary: 'Organic Bio-NPK Fertilizer (2x5kg) & Micronutrient Spray',
-            isHazardous: false
-          },
-          verificationOtp: '7294',
-          createdAt: new Date().toISOString()
-        });
-      }
+      console.warn('Failed to fetch delivery status:', e);
     }
   };
 

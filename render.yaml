@@ -27,16 +27,14 @@ services:
         sync: false
       - key: TWILIO_VERIFY_SERVICE_SID
         sync: false
-      - key: ADMIN_BOOTSTRAP_MOBILE
-        value: "00110099"
-      - key: ADMIN_BOOTSTRAP_PASSWORD
-        value: "Admin@2821"
-      - key: CROPERX_DEMO_ADMIN_MOBILE
-        value: "00110099"
-      - key: CROPERX_DEMO_ADMIN_PASSWORD
-        value: "ADMIN@2821"
-      - key: PUBLIC_APP_URL
+      - key: TWILIO_PHONE_NUMBER
         sync: false
+      - key: ADMIN_BOOTSTRAP_MOBILE
+        sync: false
+      - key: ADMIN_BOOTSTRAP_PASSWORD
+        sync: false
+      - key: PUBLIC_APP_URL
+        value: "https://croperx-2.onrender.com"
       - key: DATA_DIR
         value: /var/data
     disk:

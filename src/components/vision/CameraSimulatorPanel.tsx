@@ -115,8 +115,8 @@ export const CameraSimulatorPanel: React.FC<CameraSimulatorPanelProps> = ({
           </div>
         </div>
 
-        <span className="px-2.5 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 rounded-full text-[10px] font-mono font-black uppercase">
-          DEMO / SIMULATED
+        <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-900 border border-emerald-300 rounded-full text-[10px] font-mono font-black uppercase">
+          HARDWARE BENCH
         </span>
       </div>
 

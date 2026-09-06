@@ -115,7 +115,7 @@ export const CameraPermissionDialog: React.FC<CameraPermissionDialogProps> = ({
                 className="py-3.5 px-4 bg-emerald-50 hover:bg-emerald-100 text-[#2e7d32] font-bold rounded-2xl text-sm transition-all border border-[#c8e6c9] active:scale-98 cursor-pointer flex items-center justify-center gap-1.5"
               >
                 <Sparkles className="w-4 h-4" />
-                Demo Simulator
+                Hardware Test Bench
               </button>
             </div>
           </div>

@@ -149,8 +149,8 @@ export const LiveCameraViewport: React.FC<LiveCameraViewportProps> = ({
               </button>
 
               {isSimulated && (
-                <span className="px-2.5 py-1 bg-amber-500/80 backdrop-blur-md text-white text-[10px] font-mono font-black uppercase rounded-lg border border-amber-300/40">
-                  Demo / Simulated
+                <span className="px-2.5 py-1 bg-slate-800/80 backdrop-blur-md text-slate-200 text-[10px] font-mono font-bold uppercase rounded-lg border border-slate-600/40">
+                  Bench Feed
                 </span>
               )}
             </div>

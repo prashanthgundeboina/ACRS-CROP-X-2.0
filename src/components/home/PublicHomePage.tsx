@@ -486,8 +486,8 @@ export const PublicHomePage: React.FC<PublicHomePageProps> = ({
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               LIVE TELEMETRY STREAM
             </span>
-            <span className="px-2.5 py-1 rounded-full bg-amber-950/80 border border-amber-500/40 text-amber-300 text-[10px] font-mono font-bold backdrop-blur-md">
-              DEMO / SIMULATED FEED
+            <span className="px-2.5 py-1 rounded-full bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 text-[10px] font-mono font-bold backdrop-blur-md">
+              FIELD SENSOR NETWORK
             </span>
           </div>
 
@@ -1039,7 +1039,7 @@ export const PublicHomePage: React.FC<PublicHomePageProps> = ({
             </div>
             <div>
               <span className="font-bold text-slate-300">CroperX 2.0 Agricultural Intelligence</span>
-              <p className="text-[10px] text-slate-600 font-mono">Phase 31 Content Studio & Demonstration Engine</p>
+              <p className="text-[10px] text-slate-500 font-mono">Precision Agriculture & Operations Platform</p>
             </div>
           </div>
 

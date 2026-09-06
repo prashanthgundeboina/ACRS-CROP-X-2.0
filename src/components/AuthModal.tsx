@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { UserAccount } from '../types';
-import { loginUser, registerUser, resetUserPassword, requestAuthOtp, getReverseGeocode } from '../services/authService';
-import { User, Phone, Lock, MapPin, Camera, Sparkles, Check, AlertCircle, Loader2, X, Upload, Compass, Eye, EyeOff, ShieldCheck, Zap, KeyRound, CheckCircle2 } from 'lucide-react';
+import { loginUser, loginUserWithOtp, registerUser, resetUserPassword, requestAuthOtp, getReverseGeocode } from '../services/authService';
+import { User, Phone, Lock, MapPin, Camera, Sparkles, Check, AlertCircle, Loader2, X, Upload, Compass, Eye, EyeOff, ShieldCheck, Zap, KeyRound, CheckCircle2, MessageSquare } from 'lucide-react';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -23,9 +23,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
   const [mode, setMode] = useState<'login' | 'register' | 'reset'>('login');
   
   // Login State
+  const [loginMethod, setLoginMethod] = useState<'password' | 'otp'>('password');
   const [loginPhone, setLoginPhone] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [loginOtpStep, setLoginOtpStep] = useState<1 | 2>(1);
+  const [loginOtpCode, setLoginOtpCode] = useState('');
 
   // Register State
   const [regPhone, setRegPhone] = useState('');
@@ -81,18 +84,44 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
     }
   };
 
-  // Quick Demo Login Handler
-  const handleQuickDemoLogin = async () => {
-    setLoginPhone('+91 9876543210');
-    setLoginPassword('farmer123');
+  // Real Twilio OTP Login Handlers
+  const handleSendLoginOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!loginPhone || loginPhone.trim().length < 8) {
+      setError("Please enter a valid registered mobile number.");
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
-      const res = await loginUser('+919876543210', 'farmer123');
-      onAuthSuccess(res.user);
-      onClose();
+      const res = await requestAuthOtp(loginPhone.trim(), 'login');
+      setSuccessMsg(res.message || "Verification code sent to your phone via SMS.");
+      setLoginOtpStep(2);
+      setLoginOtpCode('');
     } catch (err: any) {
-      setError(err.message || 'Quick login failed.');
+      setError(err.message || "Failed to dispatch verification SMS via Twilio.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyLoginOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!loginOtpCode || loginOtpCode.trim().length < 4) {
+      setError("Please enter the 6-digit verification code received on your phone.");
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await loginUserWithOtp(loginPhone.trim(), loginOtpCode.trim());
+      setSuccessMsg("Phone verified successfully! Logging you in...");
+      setTimeout(() => {
+        onAuthSuccess(res.user);
+        onClose();
+      }, 500);
+    } catch (err: any) {
+      setError(err.message || "Invalid or expired verification code.");
     } finally {
       setLoading(false);
     }
@@ -348,89 +377,206 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
 
             {mode === 'login' && (
               /* LOGIN FORM */
-              <form onSubmit={handleLoginSubmit} className="space-y-4">
-                {/* One-Click Quick Demo Login */}
-                <div className="p-3 bg-gradient-to-r from-emerald-50 to-amber-50 border border-emerald-200 rounded-2xl flex items-center justify-between">
-                  <div>
-                    <div className="text-xs font-bold text-[#1b2e1b] flex items-center gap-1">
-                      <Zap className="w-3.5 h-3.5 text-amber-600 fill-amber-500" />
-                      <span>Instant Demo Access</span>
-                    </div>
-                    <div className="text-[11px] text-gray-600">Pre-configured test account (+91 9876543210)</div>
-                  </div>
+              <div className="space-y-4">
+                {/* Authentication Method Selector */}
+                <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-xl">
                   <button
                     type="button"
-                    onClick={handleQuickDemoLogin}
-                    disabled={loading}
-                    className="px-3 py-1.5 bg-[#2e7d32] hover:bg-[#1b2e1b] text-white text-xs font-bold rounded-xl shadow transition-all flex items-center gap-1"
+                    onClick={() => { setLoginMethod('password'); setError(null); }}
+                    className={`py-2 px-3 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                      loginMethod === 'password'
+                        ? 'bg-white text-[#1b2e1b] shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
                   >
-                    <span>1-Click Login</span>
+                    <Lock className="w-3.5 h-3.5 text-[#2e7d32]" />
+                    <span>Password</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setLoginMethod('otp'); setError(null); }}
+                    className={`py-2 px-3 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                      loginMethod === 'otp'
+                        ? 'bg-white text-[#1b2e1b] shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <MessageSquare className="w-3.5 h-3.5 text-[#2e7d32]" />
+                    <span>SMS OTP (Twilio)</span>
                   </button>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-[#1b2e1b] mb-1.5 flex items-center gap-1.5">
-                    <Phone className="w-3.5 h-3.5 text-[#2e7d32]" />
-                    Registered Phone Number
-                  </label>
-                  <input
-                    type="tel"
-                    required
-                    placeholder="e.g. +91 9876543210 or 9876543210"
-                    value={loginPhone}
-                    onChange={(e) => setLoginPhone(e.target.value)}
-                    className="w-full p-3 bg-[#f8fcf8] border border-[#c8e6c9] rounded-xl text-sm font-semibold outline-none focus:border-[#4CAF50]"
-                  />
-                </div>
+                {loginMethod === 'password' ? (
+                  <form onSubmit={handleLoginSubmit} className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-bold text-[#1b2e1b] mb-1.5 flex items-center gap-1.5">
+                        <Phone className="w-3.5 h-3.5 text-[#2e7d32]" />
+                        Registered Mobile Number
+                      </label>
+                      <input
+                        type="tel"
+                        required
+                        placeholder="e.g. +91 98765 43210 or 9876543210"
+                        value={loginPhone}
+                        onChange={(e) => setLoginPhone(e.target.value)}
+                        className="w-full p-3 bg-[#f8fcf8] border border-[#c8e6c9] rounded-xl text-sm font-semibold outline-none focus:border-[#4CAF50]"
+                      />
+                    </div>
 
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-xs font-bold text-[#1b2e1b] flex items-center gap-1.5">
-                      <Lock className="w-3.5 h-3.5 text-[#2e7d32]" />
-                      Password
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => setMode('reset')}
-                      className="text-[11px] font-bold text-[#2e7d32] hover:underline"
-                    >
-                      Forgot Password?
-                    </button>
-                  </div>
-                  <div className="relative">
-                    <input
-                      type={showLoginPassword ? "text" : "password"}
-                      required
-                      placeholder="••••••••"
-                      value={loginPassword}
-                      onChange={(e) => setLoginPassword(e.target.value)}
-                      className="w-full p-3 pr-10 bg-[#f8fcf8] border border-[#c8e6c9] rounded-xl text-sm font-semibold outline-none focus:border-[#4CAF50]"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowLoginPassword(!showLoginPassword)}
-                      className="absolute right-3 top-3.5 text-gray-400 hover:text-gray-600"
-                    >
-                      {showLoginPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="text-xs font-bold text-[#1b2e1b] flex items-center gap-1.5">
+                          <Lock className="w-3.5 h-3.5 text-[#2e7d32]" />
+                          Password
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setMode('reset')}
+                          className="text-[11px] font-bold text-[#2e7d32] hover:underline"
+                        >
+                          Forgot Password?
+                        </button>
+                      </div>
+                      <div className="relative">
+                        <input
+                          type={showLoginPassword ? "text" : "password"}
+                          required
+                          placeholder="••••••••"
+                          value={loginPassword}
+                          onChange={(e) => setLoginPassword(e.target.value)}
+                          className="w-full p-3 pr-10 bg-[#f8fcf8] border border-[#c8e6c9] rounded-xl text-sm font-semibold outline-none focus:border-[#4CAF50]"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowLoginPassword(!showLoginPassword)}
+                          className="absolute right-3 top-3.5 text-gray-400 hover:text-gray-600"
+                        >
+                          {showLoginPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
 
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full py-3.5 bg-[#1b2e1b] hover:bg-[#2e7d32] text-white font-bold text-sm rounded-xl transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-50 mt-2"
-                >
-                  {loading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Verifying Credentials...</span>
-                    </>
-                  ) : (
-                    <span>Log In to Account</span>
-                  )}
-                </button>
-              </form>
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="w-full py-3.5 bg-[#1b2e1b] hover:bg-[#2e7d32] text-white font-bold text-sm rounded-xl transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-50 mt-2"
+                    >
+                      {loading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Verifying Credentials...</span>
+                        </>
+                      ) : (
+                        <span>Log In with Password</span>
+                      )}
+                    </button>
+                  </form>
+                ) : (
+                  <div className="space-y-4">
+                    {loginOtpStep === 1 ? (
+                      <form onSubmit={handleSendLoginOtp} className="space-y-4">
+                        <div>
+                          <label className="block text-xs font-bold text-[#1b2e1b] mb-1.5 flex items-center gap-1.5">
+                            <Phone className="w-3.5 h-3.5 text-[#2e7d32]" />
+                            Registered Mobile Number
+                          </label>
+                          <input
+                            type="tel"
+                            required
+                            placeholder="e.g. +91 98765 43210 or 9876543210"
+                            value={loginPhone}
+                            onChange={(e) => setLoginPhone(e.target.value)}
+                            className="w-full p-3 bg-[#f8fcf8] border border-[#c8e6c9] rounded-xl text-sm font-semibold outline-none focus:border-[#4CAF50]"
+                          />
+                          <p className="text-[11px] text-slate-500 mt-1">
+                            A secure 6-digit verification code will be dispatched via Twilio SMS.
+                          </p>
+                        </div>
+
+                        <button
+                          type="submit"
+                          disabled={loading}
+                          className="w-full py-3.5 bg-[#2e7d32] hover:bg-[#1b2e1b] text-white font-bold text-sm rounded-xl transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-50 mt-2"
+                        >
+                          {loading ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              <span>Dispatching SMS via Twilio...</span>
+                            </>
+                          ) : (
+                            <>
+                              <MessageSquare className="w-4 h-4" />
+                              <span>Send Verification Code via SMS</span>
+                            </>
+                          )}
+                        </button>
+                      </form>
+                    ) : (
+                      <form onSubmit={handleVerifyLoginOtp} className="space-y-4">
+                        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between text-xs">
+                          <div>
+                            <span className="text-slate-500">Sent SMS to: </span>
+                            <span className="font-bold text-slate-900">{loginPhone}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setLoginOtpStep(1)}
+                            className="text-[#2e7d32] font-bold hover:underline"
+                          >
+                            Change
+                          </button>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-[#1b2e1b] mb-1.5 flex items-center gap-1.5">
+                            <KeyRound className="w-3.5 h-3.5 text-[#2e7d32]" />
+                            6-Digit Verification Code
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            maxLength={6}
+                            placeholder="Enter 6-digit OTP"
+                            value={loginOtpCode}
+                            onChange={(e) => setLoginOtpCode(e.target.value.replace(/\D/g, ''))}
+                            className="w-full p-3 text-center tracking-widest font-mono text-lg bg-[#f8fcf8] border border-[#c8e6c9] rounded-xl font-bold outline-none focus:border-[#4CAF50]"
+                            autoFocus
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <button
+                            type="button"
+                            onClick={handleSendLoginOtp}
+                            disabled={loading}
+                            className="text-xs font-bold text-[#2e7d32] hover:underline"
+                          >
+                            Resend Code via SMS
+                          </button>
+                        </div>
+
+                        <button
+                          type="submit"
+                          disabled={loading}
+                          className="w-full py-3.5 bg-[#1b2e1b] hover:bg-[#2e7d32] text-white font-bold text-sm rounded-xl transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-50 mt-2"
+                        >
+                          {loading ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              <span>Verifying Code...</span>
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle2 className="w-4 h-4" />
+                              <span>Verify & Log In</span>
+                            </>
+                          )}
+                        </button>
+                      </form>
+                    )}
+                  </div>
+                )}
+              </div>
             )}
 
             {mode === 'register' && (

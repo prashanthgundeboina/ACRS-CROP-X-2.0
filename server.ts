@@ -145,7 +145,10 @@ app.get("/api/health", (req, res) => {
   const isTwilioConfigured = Boolean(
     process.env.TWILIO_ACCOUNT_SID?.trim().startsWith("AC") &&
     process.env.TWILIO_AUTH_TOKEN?.trim() &&
-    process.env.TWILIO_VERIFY_SERVICE_SID?.trim().startsWith("VA")
+    (process.env.TWILIO_VERIFY_SERVICE_SID?.trim().startsWith("VA") ||
+     Boolean(process.env.TWILIO_PHONE_NUMBER?.trim()) ||
+     Boolean(process.env.TWILIO_FROM_NUMBER?.trim()) ||
+     Boolean(process.env.TWILIO_MESSAGING_SERVICE_SID?.trim()))
   );
   const { isConfigured: isSupabaseConfigured } = getSupabase();
 
@@ -165,7 +168,10 @@ app.get("/api/health/readiness", async (req, res) => {
   const isTwilioConfigured = Boolean(
     process.env.TWILIO_ACCOUNT_SID?.trim().startsWith("AC") &&
     process.env.TWILIO_AUTH_TOKEN?.trim() &&
-    process.env.TWILIO_VERIFY_SERVICE_SID?.trim().startsWith("VA")
+    (process.env.TWILIO_VERIFY_SERVICE_SID?.trim().startsWith("VA") ||
+     Boolean(process.env.TWILIO_PHONE_NUMBER?.trim()) ||
+     Boolean(process.env.TWILIO_FROM_NUMBER?.trim()) ||
+     Boolean(process.env.TWILIO_MESSAGING_SERVICE_SID?.trim()))
   );
   const { isConfigured: isSupabaseConfigured } = getSupabase();
   const sessionConfig = validateSessionConfiguration();
@@ -934,7 +940,7 @@ class TwilioVerifyProvider implements OtpProvider {
       console.log(`[Twilio Verify] Dispatched SMS verification request to ${phoneNumber} (Status: ${verification.status})`);
       return {
         success: true,
-        message: "Verification code sent to your mobile number.",
+        message: "Verification code sent to your mobile number via Twilio SMS.",
         provider: "twilio",
       };
     } catch (error: any) {
@@ -978,6 +984,91 @@ class TwilioVerifyProvider implements OtpProvider {
   }
 }
 
+class TwilioSmsProvider implements OtpProvider {
+  private client: any;
+  private fromNumber: string;
+  private memoryStore = new Map<string, { code: string; expiresAt: number; attempts: number }>();
+
+  constructor(accountSid: string, authToken: string, fromNumber: string) {
+    this.client = twilio(accountSid, authToken);
+    this.fromNumber = fromNumber;
+  }
+
+  async sendOtp(phoneNumber: string, purpose?: string): Promise<OtpProviderResult> {
+    if (!isValidE164Phone(phoneNumber)) {
+      const err: any = new Error("Invalid mobile number format. Please provide a valid 10-digit mobile number with country code (e.g., +91 98765 43210).");
+      err.statusCode = 400;
+      throw err;
+    }
+
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    this.memoryStore.set(phoneNumber, {
+      code,
+      expiresAt: Date.now() + 10 * 60 * 1000,
+      attempts: 0
+    });
+
+    try {
+      await this.client.messages.create({
+        body: `Your CroperX verification code is: ${code}. Valid for 10 minutes. Do not share this code with anyone.`,
+        from: this.fromNumber,
+        to: phoneNumber
+      });
+      console.log(`[Twilio SMS] Dispatched OTP SMS to ${phoneNumber}`);
+      return {
+        success: true,
+        message: "Verification code sent to your mobile number via SMS.",
+        provider: "twilio"
+      };
+    } catch (error: any) {
+      console.error(`[Twilio SMS] Failed to dispatch SMS to ${phoneNumber}:`, error?.message || error);
+      const err: any = new Error(error?.message || "Failed to dispatch SMS verification code via Twilio.");
+      err.statusCode = 500;
+      throw err;
+    }
+  }
+
+  async verifyOtp(phoneNumber: string, code: string, purpose?: string): Promise<VerifyResult> {
+    const trimmed = (code || "").trim();
+    const record = this.memoryStore.get(phoneNumber);
+    if (!record) {
+      return { success: false, verified: false, message: "No pending verification code found. Please request a new code." };
+    }
+    if (Date.now() > record.expiresAt) {
+      this.memoryStore.delete(phoneNumber);
+      return { success: false, verified: false, message: "Verification code has expired. Please request a new code." };
+    }
+    record.attempts += 1;
+    if (record.attempts > 5) {
+      this.memoryStore.delete(phoneNumber);
+      return { success: false, verified: false, message: "Too many failed attempts. Please request a new code." };
+    }
+    if (record.code === trimmed) {
+      this.memoryStore.delete(phoneNumber);
+      return { success: true, verified: true, message: "Phone verified successfully." };
+    }
+    return { success: false, verified: false, message: "Invalid verification code. Please check and try again." };
+  }
+}
+
+class UnconfiguredTwilioProvider implements OtpProvider {
+  async sendOtp(phoneNumber: string, purpose?: string): Promise<OtpProviderResult> {
+    const err: any = new Error(
+      "Twilio SMS Gateway is not configured. Please set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_VERIFY_SERVICE_SID (or TWILIO_PHONE_NUMBER) in your Render environment settings, or log in with your registered password."
+    );
+    err.statusCode = 503;
+    throw err;
+  }
+
+  async verifyOtp(phoneNumber: string, code: string, purpose?: string): Promise<VerifyResult> {
+    return {
+      success: false,
+      verified: false,
+      message: "Twilio SMS Gateway is not configured on this server."
+    };
+  }
+}
+
 class DevOtpProvider implements OtpProvider {
   private memoryStore = new Map<string, { code: string; expiresAt: number; attempts: number }>();
 
@@ -988,31 +1079,26 @@ class DevOtpProvider implements OtpProvider {
       expiresAt: Date.now() + 10 * 60 * 1000,
       attempts: 0,
     });
-    console.log(`[Dev OTP Simulator] Generated verification code for ${phoneNumber}: ${code}`);
+    console.log(`[Authentication Service] Generated verification code for ${phoneNumber}: ${code}`);
     return {
       success: true,
-      message: `Verification code generated: ${code} (or enter 123456 for instant testing).`,
+      message: `Verification code generated and dispatched.`,
       provider: "dev_mode",
     };
   }
 
   async verifyOtp(phoneNumber: string, code: string, purpose?: string): Promise<VerifyResult> {
     const trimmed = (code || "").trim();
-    // Allow developer bypass codes (123456 or 000000)
-    if (trimmed === "123456" || trimmed === "000000") {
-      return { success: true, verified: true, message: "Phone verified successfully (Development Mode)." };
-    }
-
     const record = this.memoryStore.get(phoneNumber);
     if (!record) {
-      return { success: false, verified: false, message: "No pending verification code found. Please request a new code or enter 123456." };
+      return { success: false, verified: false, message: "No pending verification code found. Please request a new code." };
     }
     if (Date.now() > record.expiresAt) {
       this.memoryStore.delete(phoneNumber);
       return { success: false, verified: false, message: "Verification code has expired. Please request a new code." };
     }
     record.attempts += 1;
-    if (record.attempts > 10) {
+    if (record.attempts > 5) {
       this.memoryStore.delete(phoneNumber);
       return { success: false, verified: false, message: "Too many failed attempts. Please request a new code." };
     }
@@ -1020,7 +1106,7 @@ class DevOtpProvider implements OtpProvider {
       this.memoryStore.delete(phoneNumber);
       return { success: true, verified: true, message: "Phone verified successfully." };
     }
-    return { success: false, verified: false, message: "Invalid verification code. Please enter the code displayed or 123456." };
+    return { success: false, verified: false, message: "Invalid verification code. Please check and try again." };
   }
 }
 
@@ -1030,21 +1116,27 @@ function getActiveOtpProvider(): OtpProvider {
   const accountSid = process.env.TWILIO_ACCOUNT_SID?.trim();
   const authToken = process.env.TWILIO_AUTH_TOKEN?.trim();
   const serviceSid = process.env.TWILIO_VERIFY_SERVICE_SID?.trim();
+  const phoneNumber = (process.env.TWILIO_PHONE_NUMBER || process.env.TWILIO_FROM_NUMBER || process.env.TWILIO_MESSAGING_SERVICE_SID)?.trim();
 
-  const isConfigured = Boolean(
+  const hasCredentials = Boolean(
     accountSid &&
     authToken &&
-    serviceSid &&
     accountSid.startsWith("AC") &&
-    !accountSid.includes("YOUR_") &&
-    serviceSid.startsWith("VA")
+    !accountSid.includes("YOUR_")
   );
 
-  if (isConfigured) {
-    return new TwilioVerifyProvider(accountSid!, authToken!, serviceSid!);
+  if (hasCredentials && serviceSid && serviceSid.startsWith("VA")) {
+    return new TwilioVerifyProvider(accountSid!, authToken!, serviceSid);
   }
 
-  // Gracefully fallback to Dev/Testing OTP provider when Twilio credentials are not configured
+  if (hasCredentials && phoneNumber) {
+    return new TwilioSmsProvider(accountSid!, authToken!, phoneNumber);
+  }
+
+  if (process.env.NODE_ENV === "production") {
+    return new UnconfiguredTwilioProvider();
+  }
+
   return defaultDevOtpProvider;
 }
 
@@ -4034,45 +4126,8 @@ setInterval(() => {
   }
 }, 10000);
 
-// Seed initial demo presence
-livePresenceMap.set("usr_demo_croperx", {
-  userId: "usr_demo_croperx",
-  phoneNumber: "+919876543210",
-  name: "Ravi Kumar",
-  role: "farmer",
-  avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80",
-  state: "online",
-  isLocationSharing: true,
-  latitude: 30.9010,
-  longitude: 75.8573,
-  accuracyMeters: 12,
-  lastHeartbeat: Date.now(),
-  lastLocationUpdate: Date.now(),
-  farmName: "Green Valley Farm",
-  farmZone: "North Field A",
-  crop: "Wheat (Triticum aestivum)",
-  district: "Ludhiana",
-  stateName: "Punjab"
-});
-
-livePresenceMap.set("adv-expert-01", {
-  userId: "adv-expert-01",
-  phoneNumber: "+919812345678",
-  name: "Dr. Anand Sharma",
-  role: "farmer_adviser",
-  avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80",
-  state: "online",
-  isLocationSharing: true,
-  latitude: 30.9100,
-  longitude: 75.8450,
-  accuracyMeters: 10,
-  lastHeartbeat: Date.now(),
-  lastLocationUpdate: Date.now(),
-  specialization: "Agronomy & Soil Nutrient Management",
-  organization: "Punjab Agricultural University (PAU) Extension",
-  district: "Ludhiana",
-  stateName: "Punjab"
-});
+// Real-time presence map is populated organically by connected users sending heartbeats
+// No artificial presence seeding in production.
 
 // Real-time adviser call requests store (empty by default; populated only by real farmer/emergency call requests)
 // No fake demo calls permitted in production.
@@ -4453,91 +4508,6 @@ function getConversationId(userId1: string, userId2: string): string {
   const sorted = [String(userId1).trim(), String(userId2).trim()].sort();
   return `conv_${sorted[0]}_${sorted[1]}`;
 }
-
-// Seed initial conversation
-const seedConvId = getConversationId("usr_demo_croperx", "adv-expert-01");
-const seedMsg1: ServerChatMessage = {
-  id: "msg_seed_01",
-  conversationId: seedConvId,
-  senderId: "usr_demo_croperx",
-  senderName: "Ravi Kumar",
-  senderRole: "farmer",
-  senderAvatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80",
-  receiverId: "adv-expert-01",
-  receiverName: "Dr. Anand Sharma",
-  receiverRole: "farmer_adviser",
-  text: "Dr. Sharma, greetings from Green Valley Farm! I noticed mild yellowing on the lower leaf canopy in Zone A.",
-  status: "seen",
-  createdAt: Date.now() - 3600000 * 3,
-  reactions: { "🌾": ["adv-expert-01"] }
-};
-
-const seedMsg2: ServerChatMessage = {
-  id: "msg_seed_02",
-  conversationId: seedConvId,
-  senderId: "usr_demo_croperx",
-  senderName: "Ravi Kumar",
-  senderRole: "farmer",
-  senderAvatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80",
-  receiverId: "adv-expert-01",
-  receiverName: "Dr. Anand Sharma",
-  receiverRole: "farmer_adviser",
-  mediaType: "telemetry",
-  telemetryCard: {
-    cropName: "Wheat (Triticum aestivum)",
-    soilMoisture: "26% (Mild Deficit)",
-    weatherCondition: "31°C, Clear Sky",
-    soilPh: 6.4,
-    fieldZone: "North Field Zone A",
-    latitude: 30.9010,
-    longitude: 75.8573,
-    timestamp: new Date(Date.now() - 3600000 * 2.8).toISOString(),
-    notes: "Top 2 inches soil dry. Last irrigated 4 days ago."
-  },
-  status: "seen",
-  createdAt: Date.now() - 3600000 * 2.8,
-  reactions: { "❤️": ["adv-expert-01"] }
-};
-
-const seedMsg3: ServerChatMessage = {
-  id: "msg_seed_03",
-  conversationId: seedConvId,
-  senderId: "adv-expert-01",
-  senderName: "Dr. Anand Sharma",
-  senderRole: "farmer_adviser",
-  senderAvatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80",
-  receiverId: "usr_demo_croperx",
-  receiverName: "Ravi Kumar",
-  receiverRole: "farmer",
-  text: "Hello Ravi! The telemetry card is very helpful. At 26% soil moisture with 31°C heat, the crop is experiencing slight moisture stress and nitrogen uptake deceleration. Please apply 45 minutes of drip irrigation tomorrow at 06:00 AM.",
-  status: "seen",
-  createdAt: Date.now() - 3600000 * 2.5,
-  reactions: { "👍": ["usr_demo_croperx"] }
-};
-
-chatMessagesMap.set(seedConvId, [seedMsg1, seedMsg2, seedMsg3]);
-
-chatConversationsMap.set(seedConvId, {
-  id: seedConvId,
-  participantA: {
-    userId: "usr_demo_croperx",
-    name: "Ravi Kumar",
-    role: "farmer",
-    phoneNumber: "+919876543210",
-    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80"
-  },
-  participantB: {
-    userId: "adv-expert-01",
-    name: "Dr. Anand Sharma",
-    role: "farmer_adviser",
-    phoneNumber: "+919812345678",
-    avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80"
-  },
-  lastMessage: seedMsg3,
-  unreadCountA: 0,
-  unreadCountB: 0,
-  updatedAt: seedMsg3.createdAt
-});
 
 // 1. Get Conversations for User
 app.get("/api/chat/conversations", (req, res) => {
@@ -6548,22 +6518,6 @@ app.get("/api/admin/live-sessions", (req, res) => {
     adviserName: "Dr. Anand Sharma",
     privacyCompliant: true
   }));
-
-  // If no live calls in memory, supply standard active call status
-  if (activeCalls.length === 0) {
-    activeCalls.push({
-      callId: "call-demo-active",
-      farmerName: "Ramesh Kumar",
-      farmName: "Green Valley Farm",
-      crop: "Wheat (Canopy Scan)",
-      status: "ACTIVE",
-      createdAt: Date.now() - 1000 * 180,
-      connectedAt: Date.now() - 1000 * 180,
-      durationSec: 180,
-      adviserName: "Dr. Anand Sharma",
-      privacyCompliant: true
-    });
-  }
 
   res.json({ liveSessions: activeCalls });
 });

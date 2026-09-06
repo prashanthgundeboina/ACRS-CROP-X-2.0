@@ -63,63 +63,7 @@ export const AdminFinancialLedgerView: React.FC<AdminFinancialLedgerViewProps> =
         if (Array.isArray(data.entries)) setLedgerEntries(data.entries);
       }
     } catch (e) {
-      // Demo dataset for interactive exploration
-      if (ledgerEntries.length === 0) {
-        setLedgerEntries([
-          {
-            id: 'LED-001',
-            transactionId: 'TXN-881920',
-            entityType: 'order',
-            entityId: 'ORD-98234-AGRI',
-            entryType: 'CREDIT',
-            amount: 4500,
-            currency: 'INR',
-            description: 'Farmer purchase of Organic Bio-Fertilizer 50kg',
-            reference: 'RAZORPAY_PAY_991823',
-            createdBy: 'PLATFORM_GATEWAY',
-            timestamp: new Date(Date.now() - 3600000).toISOString()
-          },
-          {
-            id: 'LED-002',
-            transactionId: 'TXN-881921',
-            entityType: 'delivery_fee',
-            entityId: 'JOB-DLV-8821',
-            entryType: 'DEBIT',
-            amount: 370,
-            currency: 'INR',
-            description: 'Delivery partner payout for Guntur to Nandigama transit',
-            reference: 'FLEET_SETTLE_102',
-            createdBy: 'FLEET_DISPATCH_ENGINE',
-            timestamp: new Date(Date.now() - 2400000).toISOString()
-          },
-          {
-            id: 'LED-003',
-            transactionId: 'TXN-881922',
-            entityType: 'adviser_payout',
-            entityId: 'ADV-CERT-7712',
-            entryType: 'CREDIT',
-            amount: 750,
-            currency: 'INR',
-            description: 'Agronomist consultation booking commission (15%)',
-            reference: 'CONSULT_FEES_550',
-            createdBy: 'ADVISER_ENGINE',
-            timestamp: new Date(Date.now() - 1200000).toISOString()
-          },
-          {
-            id: 'LED-004',
-            transactionId: 'TXN-881923',
-            entityType: 'settlement',
-            entityId: 'FRM-SETTLE-009',
-            entryType: 'DEBIT',
-            amount: 3825,
-            currency: 'INR',
-            description: 'Farmer produce marketplace payout settlement',
-            reference: 'NEFT_BNK_99120',
-            createdBy: 'FINANCE_ADMIN',
-            timestamp: new Date(Date.now() - 600000).toISOString()
-          }
-        ]);
-      }
+      console.warn('Failed to load ledger entries:', e);
     } finally {
       setLoading(false);
     }
