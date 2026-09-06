@@ -10,11 +10,16 @@ import {
   Layers,
   Activity,
   CheckCircle2,
+  Calendar,
+  Radio,
   X
 } from 'lucide-react';
 import { AgentChat } from './AgentChat';
 import { AIInsights } from './AIInsights';
 import { AIActivityTimeline } from './AIActivityTimeline';
+import { DailyFarmPlanView } from './DailyFarmPlanView';
+import { RecommendationsView } from './RecommendationsView';
+import { TelemetryView } from './TelemetryView';
 import { FarmerAIAgent, AIInsightSummary, AIAgentInteraction } from '../../../types';
 import { useLanguage } from '../../../context/LanguageContext';
 
@@ -31,11 +36,14 @@ interface FarmerAIAdviserProps {
   onCallHumanAdviser?: () => void;
 }
 
+type FarmerAITab = 'chat' | 'plan' | 'recommendations' | 'telemetry';
+
 export const FarmerAIAdviser: React.FC<FarmerAIAdviserProps> = ({
   farmer,
   onCallHumanAdviser
 }) => {
   const { language } = useLanguage();
+  const [activeTab, setActiveTab] = useState<FarmerAITab>('chat');
   const [agent, setAgent] = useState<FarmerAIAgent | null>(null);
   const [insights, setInsights] = useState<AIInsightSummary | null>(null);
   const [memoriesCount, setMemoriesCount] = useState<number>(0);
@@ -170,7 +178,7 @@ export const FarmerAIAdviser: React.FC<FarmerAIAdviserProps> = ({
               </div>
               <p className="text-xs sm:text-sm text-slate-300 mt-1">
                 Personalized intelligent advisory for{' '}
-                <strong className="text-emerald-300">{farmer.name}</strong> •{' '}
+                <strong className="text-emerald-300">{farmer.name}</strong> &bull;{' '}
                 <span>{farmer.primaryCrop || 'Paddy'} Cultivation</span> ({farmer.farmSizeAcres || 3} Acres)
               </p>
             </div>
@@ -203,23 +211,76 @@ export const FarmerAIAdviser: React.FC<FarmerAIAdviserProps> = ({
         farmLocation={farmer.location}
       />
 
-      {/* Main Grid: Interactive Chat & Activity Log */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <div className="lg:col-span-7">
-          <AgentChat
-            farmer={farmer}
-            onEscalateRequested={() => setShowEscalateModal(true)}
-            automationMode={agent?.automationMode}
-            isPaused={agent?.status === 'PAUSED' || agent?.status === 'DISABLED'}
-          />
-        </div>
-        <div className="lg:col-span-5">
-          <AIActivityTimeline
-            interactions={insights?.recentInteractions || []}
-            memoriesCount={memoriesCount}
-          />
-        </div>
+      {/* Navigation Tabs for Farmer AI Adviser */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 border-b border-slate-800">
+        {[
+          { id: 'chat', label: 'Adviser Chat', icon: Bot },
+          { id: 'plan', label: 'Daily Farm Plan', icon: Calendar },
+          { id: 'recommendations', label: 'Explainable Recommendations', icon: Sparkles },
+          { id: 'telemetry', label: 'Farm Telemetry & Sensors', icon: Radio }
+        ].map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as FarmerAITab)}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
+                isActive
+                  ? 'bg-emerald-600 text-white shadow-md shadow-emerald-950/40'
+                  : 'text-slate-400 hover:text-slate-200 bg-slate-900/60 hover:bg-slate-900'
+              }`}
+            >
+              <Icon className="w-4 h-4" />
+              <span>{tab.label}</span>
+            </button>
+          );
+        })}
       </div>
+
+      {/* Tab 1: Interactive Chat & Timeline */}
+      {activeTab === 'chat' && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <div className="lg:col-span-7">
+            <AgentChat
+              farmer={farmer}
+              onEscalateRequested={() => setShowEscalateModal(true)}
+              automationMode={agent?.automationMode}
+              isPaused={agent?.status === 'PAUSED' || agent?.status === 'DISABLED'}
+            />
+          </div>
+          <div className="lg:col-span-5">
+            <AIActivityTimeline
+              interactions={insights?.recentInteractions || []}
+              memoriesCount={memoriesCount}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Tab 2: Daily Farm Plan */}
+      {activeTab === 'plan' && (
+        <DailyFarmPlanView
+          farmerId={farmer.id}
+          farmerName={farmer.name}
+          cropName={farmer.primaryCrop}
+          location={farmer.location}
+        />
+      )}
+
+      {/* Tab 3: Explainable Recommendations & Continuous Learning */}
+      {activeTab === 'recommendations' && (
+        <RecommendationsView farmerId={farmer.id} />
+      )}
+
+      {/* Tab 4: Live Telemetry */}
+      {activeTab === 'telemetry' && (
+        <TelemetryView
+          farmerId={farmer.id}
+          cropName={farmer.primaryCrop}
+          location={farmer.location}
+        />
+      )}
 
       {/* Human Escalation Modal */}
       {showEscalateModal && (
@@ -240,73 +301,70 @@ export const FarmerAIAdviser: React.FC<FarmerAIAdviserProps> = ({
                 <PhoneCall className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-white">
-                  Request Certified Human Agronomist
-                </h3>
+                <h3 className="text-base font-bold text-white">Escalate to Human Agronomist</h3>
                 <p className="text-xs text-slate-400">
-                  Direct escalation from your AI advisory session
+                  A certified district agronomist will review your field condition and call you.
                 </p>
               </div>
             </div>
 
             {escalateSuccess ? (
-              <div className="p-5 rounded-2xl bg-emerald-950/40 border border-emerald-500/30 text-center space-y-3">
-                <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto" />
-                <h4 className="text-sm font-bold text-white">
-                  Agronomist Ticket Queued Successfully!
-                </h4>
+              <div className="p-4 rounded-2xl bg-emerald-950/40 border border-emerald-500/30 text-center space-y-2">
+                <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto" />
+                <h4 className="text-sm font-bold text-white">Escalation Ticket Registered</h4>
                 <p className="text-xs text-slate-300">
-                  Your ticket reference is{' '}
-                  <strong className="text-emerald-400">{escalateSuccess}</strong>. An agronomist is
-                  reviewing your field history and will contact you.
+                  Ticket ID: <strong className="text-emerald-400">{escalateSuccess}</strong>. An agronomist will review within 30 minutes.
                 </p>
-                <button
-                  onClick={() => {
-                    setShowEscalateModal(false);
-                    setEscalateSuccess(null);
-                  }}
-                  className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors"
-                >
-                  Return to Dashboard
-                </button>
               </div>
             ) : (
               <form onSubmit={handleEscalateSubmit} className="space-y-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                    Describe your crop concern or urgency:
+                    What field issue requires human agronomist verification?
                   </label>
                   <textarea
-                    rows={4}
+                    rows={3}
+                    required
                     value={escalateReason}
                     onChange={(e) => setEscalateReason(e.target.value)}
-                    placeholder="E.g., Severe leaf browning across 2 acres despite neem spray, need expert agronomist field visit or call..."
-                    required
-                    className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 text-white text-xs sm:text-sm rounded-xl p-3.5 focus:outline-none focus:ring-1 focus:ring-amber-500 resize-none"
+                    placeholder="Describe specific symptoms, leaf discoloration, suspected pest, or chemical uncertainty..."
+                    className="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-2xl p-3 focus:outline-none focus:border-amber-500"
                   />
                 </div>
 
-                <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 text-[11px] text-slate-400 space-y-1">
-                  <p className="font-semibold text-slate-300">Included in Escalation Packet:</p>
-                  <p>• Soil Telemetry (pH 6.8, N-P-K readings)</p>
-                  <p>• Recent AI recommendations & conversation memory</p>
-                  <p>• Farm acreage & primary crop profile ({farmer.primaryCrop})</p>
+                <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-[11px] text-slate-400 space-y-1">
+                  <p>
+                    <strong className="text-slate-300">Farmer:</strong> {farmer.name} ({farmer.phoneNumber || 'Registered Phone'})
+                  </p>
+                  <p>
+                    <strong className="text-slate-300">Standing Crop:</strong> {farmer.primaryCrop || 'Paddy'} &bull; {farmer.location || 'Rural Farm'}
+                  </p>
                 </div>
 
-                <div className="flex items-center gap-3 pt-2">
+                <div className="flex items-center justify-end gap-3 pt-2">
                   <button
                     type="button"
                     onClick={() => setShowEscalateModal(false)}
-                    className="flex-1 py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors"
+                    className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold hover:bg-slate-700 transition-colors"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={submittingEscalation || !escalateReason.trim()}
-                    className="flex-1 py-2.5 px-4 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white text-xs font-bold transition-all shadow-lg shadow-amber-950/40 disabled:opacity-40"
+                    className="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-bold text-xs flex items-center gap-2 transition-all shadow-lg shadow-amber-950/40 disabled:opacity-50"
                   >
-                    {submittingEscalation ? 'Dispatching Ticket...' : 'Confirm Escalation'}
+                    {submittingEscalation ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Submitting Ticket...</span>
+                      </>
+                    ) : (
+                      <>
+                        <PhoneCall className="w-3.5 h-3.5" />
+                        <span>Submit for Human Review</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </form>

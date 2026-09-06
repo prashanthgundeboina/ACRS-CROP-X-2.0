@@ -1,6 +1,7 @@
 import {
   AIAutomationMode,
   AIAgentStatus,
+  AISafetyState,
   AIRiskLevel,
   AIIntentCategory,
   AIMemoryType,
@@ -10,12 +11,34 @@ import {
   AIEscalation,
   AIAutomationSettings,
   AIAuditEvent,
-  AIInsightSummary
+  AIInsightSummary,
+  AITaskType,
+  AITaskStatus,
+  AITask,
+  AIFeedbackType,
+  AIFeedback,
+  AIAnomalyType,
+  AIAnomaly,
+  AIEventType,
+  AIUrgencyLevel,
+  AIActionOutcome,
+  AIExplainability,
+  AIRecommendation,
+  AIEvent,
+  AINetworkMetrics,
+  FarmerAgentMetrics,
+  DailyFarmPlan,
+  ProviderTelemetryData,
+  TelemetryDataStatus,
+  TelemetryProviderId,
+  TelemetryMode,
+  FactVerificationLevel
 } from '../../src/types';
 
 export type {
   AIAutomationMode,
   AIAgentStatus,
+  AISafetyState,
   AIRiskLevel,
   AIIntentCategory,
   AIMemoryType,
@@ -25,7 +48,28 @@ export type {
   AIEscalation,
   AIAutomationSettings,
   AIAuditEvent,
-  AIInsightSummary
+  AIInsightSummary,
+  AITaskType,
+  AITaskStatus,
+  AITask,
+  AIFeedbackType,
+  AIFeedback,
+  AIAnomalyType,
+  AIAnomaly,
+  AIEventType,
+  AIUrgencyLevel,
+  AIActionOutcome,
+  AIExplainability,
+  AIRecommendation,
+  AIEvent,
+  AINetworkMetrics,
+  FarmerAgentMetrics,
+  DailyFarmPlan,
+  ProviderTelemetryData,
+  TelemetryDataStatus,
+  TelemetryProviderId,
+  TelemetryMode,
+  FactVerificationLevel
 };
 
 export interface AgentContext {

@@ -3,7 +3,7 @@ import path from 'path';
 import crypto from 'crypto';
 import { getSupabase, supabaseRecordAuditLog } from './supabase.js';
 
-const DATA_DIR = path.join(process.cwd(), 'data');
+const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), 'data');
 const APPLICATIONS_FILE = path.join(DATA_DIR, 'adviser_applications_db.json');
 const ASSESSMENT_ATTEMPTS_FILE = path.join(DATA_DIR, 'adviser_assessment_attempts_db.json');
 const ACTIVATION_TOKENS_FILE = path.join(DATA_DIR, 'adviser_activation_tokens_db.json');

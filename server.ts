@@ -101,8 +101,16 @@ import {
 } from "./server/financialLedger.js";
 import { FarmerAgentService } from "./server/ai/farmerAgentService.js";
 import { MemoryService } from "./server/ai/memoryService.js";
-import { AgentOrchestrator } from "./server/ai/agentOrchestrator.js";
+import { AgentOrchestrator, CropXAgentOrchestrator } from "./server/ai/agentOrchestrator.js";
 import { EscalationService } from "./server/ai/escalationService.js";
+import { TaskScheduler } from "./server/ai/taskScheduler.js";
+import { FeedbackService } from "./server/ai/feedbackService.js";
+import { AnomalyDetectionService } from "./server/ai/anomalyDetectionService.js";
+import { RecommendationService } from "./server/ai/recommendationService.js";
+import { MetricsService } from "./server/ai/metricsService.js";
+import { ProactiveAutomationService } from "./server/ai/proactiveAutomation.js";
+import { AIEventRouter } from "./server/ai/eventRouter.js";
+import { ProviderAdaptersService } from "./server/ai/providers/providerAdapters.js";
 
 declare global {
   namespace Express {
@@ -4066,27 +4074,8 @@ livePresenceMap.set("adv-expert-01", {
   stateName: "Punjab"
 });
 
-// Seed a sample recent active call request for initial dashboard display if none exists
-adviserCallsMap.set("call-demo-ravi", {
-  callId: "call-demo-ravi",
-  farmerId: "usr_demo_croperx",
-  farmerName: "Ravi Kumar",
-  farmerAvatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80",
-  farmName: "Green Valley Farm",
-  farmZone: "North Field A",
-  crop: "Wheat (Triticum aestivum)",
-  soilMoisture: "26% (Mild Water Stress)",
-  weather: "31°C, Humidity 45%, Clear Sky",
-  croperxObservation: "Lower canopy leaf tip chlorosis detected via vision. Irrigation deficit alert active.",
-  status: "REQUESTED",
-  createdAt: Date.now() - 45000,
-  sessionId: "cx-field-demo-1",
-  annotations: [],
-  farmerMuted: false,
-  adviserMuted: false,
-  notes: ["Farmer requested field review of leaf yellowing."],
-  priority: "Normal"
-});
+// Real-time adviser call requests store (empty by default; populated only by real farmer/emergency call requests)
+// No fake demo calls permitted in production.
 
 // SSE Real-time stream endpoint
 app.get("/api/presence/stream", (req, res) => {
@@ -6595,7 +6584,7 @@ app.get("/api/admin/system-health", (req, res) => {
     systemHealth: {
       uptimePercent: 99.98,
       apiLatencyMs: 24,
-      activeWebRTCTunnels: Math.max(1, adviserCallsMap.size),
+      activeWebRTCTunnels: adviserCallsMap.size,
       aiModelLatencyMs: 280,
       iotGatewayConnections: 42,
       serverStatus: "Operational"
@@ -7570,6 +7559,411 @@ app.post("/api/admin/ai/escalations/:id/resolve", (req, res) => {
   }
 });
 
+// ============================================================================
+// PHASE 46.2: TASKS, MEMORIES, FEEDBACK & ANOMALIES ENDPOINTS
+// ============================================================================
+
+// 13. GET /api/ai/tasks - Retrieve scheduled and executed tasks
+app.get("/api/ai/tasks", (req, res) => {
+  try {
+    const { farmerId, status } = req.query;
+    const tasks = TaskScheduler.getTasks(
+      farmerId ? String(farmerId) : undefined,
+      status ? (String(status) as any) : undefined
+    );
+    res.json({ tasks });
+  } catch (error: any) {
+    res.status(500).json({ error: error?.message || "Failed to fetch AI tasks." });
+  }
+});
+
+// 14. POST /api/ai/tasks/schedule - Schedule a new autonomous task
+app.post("/api/ai/tasks/schedule", (req, res) => {
+  try {
+    const { farmerId, agentId, taskType, payload, riskLevel, scheduledFor } = req.body;
+    if (!farmerId || !agentId || !taskType) {
+      return res.status(400).json({ error: "farmerId, agentId, and taskType are required." });
+    }
+    const task = TaskScheduler.scheduleTask(
+      farmerId,
+      agentId,
+      taskType,
+      payload || {},
+      riskLevel || "LOW",
+      scheduledFor
+    );
+    res.json({ success: true, task });
+  } catch (error: any) {
+    res.status(500).json({ error: error?.message || "Failed to schedule AI task." });
+  }
+});
+
+// 15. POST /api/ai/tasks/:taskId/execute - Trigger immediate execution of a task
+app.post("/api/ai/tasks/:taskId/execute", async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const task = await TaskScheduler.executeTask(taskId);
+    res.json({ success: true, task });
+  } catch (error: any) {
+    res.status(500).json({ error: error?.message || "Failed to execute AI task." });
+  }
+});
+
+// 16. POST /api/ai/feedback - Record farmer feedback
+app.post("/api/ai/feedback", (req, res) => {
+  try {
+    const { farmerId, agentId, feedbackType, interactionId, comment } = req.body;
+    if (!farmerId || !agentId || !feedbackType) {
+      return res.status(400).json({ error: "farmerId, agentId, and feedbackType are required." });
+    }
+    const feedback = FeedbackService.recordFeedback(
+      farmerId,
+      agentId,
+      feedbackType,
+      interactionId,
+      comment
+    );
+    res.json({ success: true, feedback });
+  } catch (error: any) {
+    res.status(500).json({ error: error?.message || "Failed to record AI feedback." });
+  }
+});
+
+// 17. GET /api/ai/feedback - Retrieve feedback history
+app.get("/api/ai/feedback", (req, res) => {
+  try {
+    const { farmerId } = req.query;
+    if (!farmerId) {
+      return res.status(400).json({ error: "farmerId is required to query feedback." });
+    }
+    const feedbackList = FeedbackService.getFeedbackByFarmer(String(farmerId));
+    res.json({ feedback: feedbackList });
+  } catch (error: any) {
+    res.status(500).json({ error: error?.message || "Failed to load feedback." });
+  }
+});
+
+// 18. GET /api/ai/feedback/metrics - Global feedback metrics for Admin Center
+app.get("/api/ai/feedback/metrics", (req, res) => {
+  try {
+    const metrics = FeedbackService.getGlobalFeedbackMetrics();
+    res.json(metrics);
+  } catch (error: any) {
+    res.status(500).json({ error: error?.message || "Failed to load feedback metrics." });
+  }
+});
+
+// 19. GET /api/ai/anomalies - Retrieve detected network anomalies
+app.get("/api/ai/anomalies", (req, res) => {
+  try {
+    const { unresolvedOnly } = req.query;
+    const anomalies = AnomalyDetectionService.getAnomalies(unresolvedOnly === "true");
+    res.json({ anomalies });
+  } catch (error: any) {
+    res.status(500).json({ error: error?.message || "Failed to fetch AI anomalies." });
+  }
+});
+
+// 20. POST /api/ai/anomalies/:anomalyId/resolve - Resolve anomaly
+app.post("/api/ai/anomalies/:anomalyId/resolve", (req, res) => {
+  try {
+    const { anomalyId } = req.params;
+    const resolved = AnomalyDetectionService.resolveAnomaly(anomalyId);
+    if (!resolved) {
+      return res.status(404).json({ error: "Anomaly not found." });
+    }
+    res.json({ success: true, message: `Anomaly ${anomalyId} marked as resolved.` });
+  } catch (error: any) {
+    res.status(500).json({ error: error?.message || "Failed to resolve anomaly." });
+  }
+});
+
+// 21. GET /api/ai/anomalies/diagnostics - Run system diagnostic scan
+app.get("/api/ai/anomalies/diagnostics", (req, res) => {
+  try {
+    const scan = AnomalyDetectionService.runDiagnosticScan();
+    res.json(scan);
+  } catch (error: any) {
+    res.status(500).json({ error: error?.message || "Failed to run diagnostics." });
+  }
+});
+
+// 22. GET /api/ai/memory/:farmerId - Farmer memory inspection
+app.get("/api/ai/memory/:farmerId", (req, res) => {
+  try {
+    const { farmerId } = req.params;
+    const { onlyActive, applyDecay } = req.query;
+    const memories = MemoryService.getMemoriesByFarmer(farmerId, {
+      onlyActive: onlyActive === "true",
+      applyDecay: applyDecay !== "false"
+    });
+    const structured = MemoryService.getStructuredMemoryMap(farmerId);
+    res.json({ memories, structured });
+  } catch (error: any) {
+    res.status(500).json({ error: error?.message || "Failed to fetch farmer memories." });
+  }
+});
+
+// 23. POST /api/ai/memory/:farmerId - Upsert custom farmer memory item
+app.post("/api/ai/memory/:farmerId", (req, res) => {
+  try {
+    const { farmerId } = req.params;
+    const { agentId, memoryType, memoryKey, memoryValue, source, confidence } = req.body;
+    if (!memoryType || !memoryKey || memoryValue === undefined) {
+      return res.status(400).json({ error: "memoryType, memoryKey, and memoryValue are required." });
+    }
+    const memory = MemoryService.upsertMemory(
+      farmerId,
+      agentId || `AGT-FRM-${farmerId.substring(0, 8)}`,
+      memoryType,
+      memoryKey,
+      memoryValue,
+      source || "MANUAL_ENTRY",
+      confidence || 1.0
+    );
+    res.json({ success: true, memory });
+  } catch (error: any) {
+    res.status(500).json({ error: error?.message || "Failed to save memory." });
+  }
+});
+
+// 24. DELETE /api/ai/memory/:farmerId/:memoryId - Delete or supersede farmer memory
+app.delete("/api/ai/memory/:farmerId/:memoryId", (req, res) => {
+  try {
+    const { farmerId, memoryId } = req.params;
+    const deleted = MemoryService.deleteMemory(farmerId, memoryId);
+    if (!deleted) {
+      return res.status(404).json({ error: "Memory item not found." });
+    }
+    res.json({ success: true, message: "Memory removed successfully." });
+  } catch (error: any) {
+    res.status(500).json({ error: error?.message || "Failed to delete memory." });
+  }
+});
+
+// 25. POST /api/admin/ai/agents/:id/safety-state - Admin update safety state
+app.post("/api/admin/ai/agents/:id/safety-state", (req, res) => {
+  try {
+    const { safetyState, adminId = "ADMIN" } = req.body;
+    const farmerId = req.params.id;
+    if (!safetyState || !['NORMAL', 'EVALUATION', 'RESTRICTED', 'LOCKED'].includes(safetyState)) {
+      return res.status(400).json({ error: "Invalid safetyState." });
+    }
+    const updated = FarmerAgentService.setAgentSafetyState(farmerId, safetyState, adminId);
+    res.json({ success: true, agent: updated });
+  } catch (error: any) {
+    res.status(500).json({ error: error?.message || "Failed to update safety state." });
+  }
+});
+
+// ============================================================================
+// PHASE 46.3: AUTONOMOUS ORCHESTRATION, PROACTIVE INTELLIGENCE & PROVIDERS
+// ============================================================================
+
+// 26. GET /api/ai/events - Retrieve agricultural event stream
+app.get("/api/ai/events", (req, res) => {
+  try {
+    const { farmerId, limit } = req.query;
+    const events = farmerId
+      ? AIEventRouter.getEvents(String(farmerId))
+      : AIEventRouter.getRecentEventStream(limit ? Number(limit) : 50);
+    res.json({ events });
+  } catch (error: any) {
+    res.status(500).json({ error: error?.message || "Failed to fetch AI events." });
+  }
+});
+
+// 27. POST /api/ai/events - Ingest and route an event through CropXAgentOrchestrator
+app.post("/api/ai/events", async (req, res) => {
+  try {
+    const { eventType, payload, source = "SENSOR_STREAM", farmerId, idempotencyKey } = req.body;
+    if (!eventType) {
+      return res.status(400).json({ error: "eventType is required." });
+    }
+
+    const result = await AIEventRouter.routeEvent(
+      eventType,
+      payload || {},
+      source,
+      farmerId,
+      idempotencyKey
+    );
+
+    // If farmerId is provided and event is reactive (e.g., HEAVY_RAIN_FORECAST or HEAT_STRESS_RISK), run autonomous evaluation
+    let reactiveRecommendation = null;
+    if (farmerId && !result.duplicate) {
+      const agent = FarmerAgentService.getAgentByFarmerId(farmerId);
+      if (agent && agent.status === 'ACTIVE') {
+        const query = `Event Alert: [${eventType}] - ${JSON.stringify(payload || {})}`;
+        reactiveRecommendation = await CropXAgentOrchestrator.processMessage(
+          {
+            id: agent.farmerId,
+            name: agent.farmerName,
+            phone: agent.phoneNumber,
+            location: agent.location,
+            primaryCrop: agent.primaryCrop,
+            farmSizeAcres: agent.farmSizeAcres,
+            language: agent.language
+          },
+          query,
+          false,
+          result.event.idempotencyKey
+        );
+      }
+    }
+
+    res.json({
+      success: true,
+      event: result.event,
+      duplicate: result.duplicate,
+      reactiveRecommendation
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error?.message || "Failed to route AI event." });
+  }
+});
+
+// 28. GET /api/ai/recommendations - Retrieve explainable recommendations
+app.get("/api/ai/recommendations", (req, res) => {
+  try {
+    const { farmerId } = req.query;
+    const recommendations = RecommendationService.getRecommendations(farmerId ? String(farmerId) : undefined);
+    res.json({ recommendations });
+  } catch (error: any) {
+    res.status(500).json({ error: error?.message || "Failed to fetch recommendations." });
+  }
+});
+
+// 29. POST /api/ai/recommendations/:id/confirm - Farmer confirms / accepts recommendation
+app.post("/api/ai/recommendations/:id/confirm", (req, res) => {
+  try {
+    const { id } = req.params;
+    const { action = "ACCEPTED" } = req.body;
+    const rec = RecommendationService.confirmRecommendation(id, action);
+    if (!rec) {
+      return res.status(404).json({ error: "Recommendation not found." });
+    }
+    res.json({ success: true, recommendation: rec });
+  } catch (error: any) {
+    res.status(500).json({ error: error?.message || "Failed to confirm recommendation." });
+  }
+});
+
+// 30. POST /api/ai/recommendations/:id/outcome - Report outcome for continuous learning
+app.post("/api/ai/recommendations/:id/outcome", (req, res) => {
+  try {
+    const { id } = req.params;
+    const { farmerId, action = "ACCEPTED", outcomeText, validated = true } = req.body;
+    if (!farmerId || !outcomeText) {
+      return res.status(400).json({ error: "farmerId and outcomeText are required." });
+    }
+    const outcome = RecommendationService.recordOutcome(
+      id,
+      farmerId,
+      action,
+      outcomeText,
+      Boolean(validated)
+    );
+    res.json({ success: true, outcome });
+  } catch (error: any) {
+    res.status(500).json({ error: error?.message || "Failed to record recommendation outcome." });
+  }
+});
+
+// 31. POST /api/ai/proactive/scan - Trigger proactive scan (morning, afternoon, or evening)
+app.post("/api/ai/proactive/scan", async (req, res) => {
+  try {
+    const { scanType = "MORNING", farmerId } = req.body;
+    let result;
+    if (scanType === "AFTERNOON") {
+      result = await ProactiveAutomationService.runAfternoonScan(farmerId);
+    } else if (scanType === "EVENING") {
+      result = await ProactiveAutomationService.runEveningScan(farmerId);
+    } else {
+      result = await ProactiveAutomationService.runMorningScan(farmerId);
+    }
+    res.json({ success: true, scan: result });
+  } catch (error: any) {
+    res.status(500).json({ error: error?.message || "Failed to run proactive scan." });
+  }
+});
+
+// 32. GET /api/ai/farm-plan - Get or generate Daily Farm Plan
+app.get("/api/ai/farm-plan", async (req, res) => {
+  try {
+    const { farmerId, name, crop, location } = req.query;
+    if (!farmerId) {
+      return res.status(400).json({ error: "farmerId is required for daily farm plan." });
+    }
+    const plan = await ProactiveAutomationService.generateDailyFarmPlan(
+      String(farmerId),
+      name ? String(name) : undefined,
+      crop ? String(crop) : undefined,
+      location ? String(location) : undefined
+    );
+    res.json({ success: true, plan });
+  } catch (error: any) {
+    res.status(500).json({ error: error?.message || "Failed to generate daily farm plan." });
+  }
+});
+
+// 33. GET /api/ai/providers/telemetry - Unified Provider Telemetry (Satellite, Weather, Sensors, Market, Drone)
+app.get("/api/ai/providers/telemetry", async (req, res) => {
+  try {
+    const { farmerId, location, crop } = req.query;
+    const telemetry = await ProviderAdaptersService.getAllTelemetry(
+      farmerId ? String(farmerId) : undefined,
+      location ? String(location) : undefined,
+      crop ? String(crop) : undefined
+    );
+    res.json({ success: true, telemetry });
+  } catch (error: any) {
+    res.status(500).json({ error: error?.message || "Failed to fetch provider telemetry." });
+  }
+});
+
+// 34. GET /api/ai/metrics - Network Metrics & AI Trust Score
+app.get("/api/ai/metrics", (req, res) => {
+  try {
+    const metrics = MetricsService.getNetworkMetrics();
+    res.json(metrics);
+  } catch (error: any) {
+    res.status(500).json({ error: error?.message || "Failed to fetch network metrics." });
+  }
+});
+
+// 35. GET /api/ai/metrics/farmer/:farmerId - Farmer Agent Performance Metrics
+app.get("/api/ai/metrics/farmer/:farmerId", (req, res) => {
+  try {
+    const { farmerId } = req.params;
+    const metrics = MetricsService.getFarmerAgentMetrics(farmerId);
+    res.json(metrics);
+  } catch (error: any) {
+    res.status(500).json({ error: error?.message || "Failed to fetch farmer agent metrics." });
+  }
+});
+
+// 36. GET /api/ai/audit/tenant-isolation - Cross-Tenant Memory Isolation Audit
+app.get("/api/ai/audit/tenant-isolation", (req, res) => {
+  try {
+    const { farmerA = "FARMER-TEST-001", farmerB = "FARMER-TEST-002" } = req.query;
+    const audit = MemoryService.verifyNoCrossTenantLeakage(String(farmerA), String(farmerB));
+    res.json({ success: true, audit });
+  } catch (error: any) {
+    res.status(500).json({ error: error?.message || "Failed to run tenant isolation audit." });
+  }
+});
+
+// 37. POST /api/ai/tasks/worker/run - Run Scheduled Due Tasks Background Worker
+app.post("/api/ai/tasks/worker/run", async (req, res) => {
+  try {
+    const result = await TaskScheduler.runScheduledWorker();
+    res.json({ success: true, result });
+  } catch (error: any) {
+    res.status(500).json({ error: error?.message || "Scheduled task worker failed." });
+  }
+});
+
 // Vite middleware or static serving
 async function initVite() {
   // Validate session configuration on server initialization
@@ -7597,13 +7991,31 @@ async function initVite() {
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
     app.get("*", (req, res) => {
+      if (req.path.startsWith("/api/")) {
+        return res.status(404).json({ error: `API route not found: ${req.method} ${req.path}` });
+      }
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  const server = app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
+
+  const gracefulShutdown = (signal: string) => {
+    console.log(`[Production Lifecycle] Received ${signal}. Shutting down gracefully...`);
+    server.close(() => {
+      console.log('[Production Lifecycle] HTTP server closed successfully.');
+      process.exit(0);
+    });
+    setTimeout(() => {
+      console.error('[Production Lifecycle] Forcing shutdown after 10s timeout.');
+      process.exit(1);
+    }, 10000).unref();
+  };
+
+  process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+  process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 }
 
 initVite();

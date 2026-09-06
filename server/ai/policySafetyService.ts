@@ -82,25 +82,27 @@ export class PolicySafetyService {
 
   /**
    * Validates if recommendation violates safety thresholds.
+   * - If confidence < 60%: Must flag for human agronomist review.
+   * - If riskLevel == 'CRITICAL' or 'HIGH': Must NOT be auto-presented as authoritative; require agronomist confirmation.
    */
   static validateConfidenceAndSafety(confidence: number, riskLevel: AIRiskLevel): {
     allowed: boolean;
     escalate: boolean;
     reason?: string;
   } {
-    if (riskLevel === 'HIGH') {
+    if (riskLevel === 'CRITICAL' || riskLevel === 'HIGH') {
       return {
         allowed: false,
         escalate: true,
-        reason: 'High risk agro-management decision requires certified agronomist signoff.'
+        reason: `${riskLevel} risk agro-management decision requires certified agronomist review and signoff.`
       };
     }
 
-    if (confidence < 70) {
+    if (confidence < 60) {
       return {
         allowed: false,
         escalate: true,
-        reason: `AI model confidence score (${confidence}%) is below minimum threshold (70%).`
+        reason: `AI model confidence score (${confidence.toFixed(1)}%) is below minimum threshold (60%). Flagged for human agronomist verification.`
       };
     }
 
@@ -109,4 +111,56 @@ export class PolicySafetyService {
       escalate: false
     };
   }
+
+  /**
+   * Audits recommendation text and automatically injects mandatory safety precautions
+   * and financial disclaimers adhering to strict agronomic and financial governance.
+   */
+  static auditRecommendationContent(text: string, intent: string): string {
+    let audited = text;
+    const lower = text.toLowerCase();
+
+    // 1. Chemical treatment governance
+    const isChemicalSuggested =
+      lower.includes('spray') ||
+      lower.includes('chemical') ||
+      lower.includes('pesticide') ||
+      lower.includes('fungicide') ||
+      lower.includes('herbicide') ||
+      lower.includes('insecticide') ||
+      lower.includes('chlorpyrifos') ||
+      lower.includes('carbendazim') ||
+      lower.includes('mancozeb') ||
+      lower.includes('imidacloprid') ||
+      lower.includes('ml/l') ||
+      lower.includes('g/l');
+
+    if (isChemicalSuggested && !lower.includes('mandatory agrochemical safety advisory')) {
+      audited +=
+        `\n\n[MANDATORY AGROCHEMICAL SAFETY ADVISORY]:\n` +
+        `• Protective Equipment: Always wear gloves, eye protection, and protective mask during mixing and spraying.\n` +
+        `• Dosage Constraints: Strictly adhere to calibrated dosage per acre. Do not overdose to prevent phytotoxicity.\n` +
+        `• Pre-Harvest Interval (PHI): Observe mandatory withholding period (7–14 days) prior to crop harvesting.\n` +
+        `• Environmental Caution: Do not spray near water sources or during peak honeybee / pollinator foraging hours.`;
+    }
+
+    // 2. Financial recommendation governance
+    const isFinancialSuggested =
+      intent === 'FARM_ECONOMICS' ||
+      intent === 'MARKET' ||
+      lower.includes('mandi price') ||
+      lower.includes('per quintal') ||
+      lower.includes('revenue') ||
+      lower.includes('cost of cultivation') ||
+      lower.includes('profit realization');
+
+    if (isFinancialSuggested && !lower.includes('financial disclaimer')) {
+      audited +=
+        `\n\n[FINANCIAL DISCLAIMER]:\n` +
+        `• Financial figures and price realizations are indicative market estimates. Always verify prevailing spot rates directly with your licensed local APMC mandi or buyer before executing sales.`;
+    }
+
+    return audited;
+  }
 }
+

@@ -1255,7 +1255,7 @@ export interface PlatformRevenueMetrics {
 }
 
 // ============================================================================
-// PHASE 46.1: AUTONOMOUS AI AGRICULTURE NETWORK FOUNDATION TYPES
+// PHASE 46.2: AUTONOMOUS AI AGRICULTURE NETWORK PRODUCTION TYPES
 // ============================================================================
 
 export type AIAutomationMode =
@@ -1265,9 +1265,11 @@ export type AIAutomationMode =
   | 'AUTONOMOUS'
   | 'PROACTIVE_AUTONOMOUS';
 
-export type AIAgentStatus = 'ACTIVE' | 'PAUSED' | 'ESCALATED' | 'DISABLED';
+export type AIAgentStatus = 'ACTIVE' | 'PAUSED' | 'ESCALATED' | 'DISABLED' | 'ERROR';
 
-export type AIRiskLevel = 'LOW' | 'MEDIUM' | 'HIGH';
+export type AISafetyState = 'NORMAL' | 'EVALUATION' | 'RESTRICTED' | 'LOCKED';
+
+export type AIRiskLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 
 export type AIIntentCategory =
   | 'CROP_HEALTH'
@@ -1276,10 +1278,17 @@ export type AIIntentCategory =
   | 'WEATHER'
   | 'PEST'
   | 'FARM_ECONOMICS'
+  | 'MARKET'
   | 'AGRI_STORE'
   | 'GENERAL_ADVISORY';
 
 export type AIMemoryType =
+  | 'farmer_profile'
+  | 'soil_memory'
+  | 'crop_memory'
+  | 'advisory_memory'
+  | 'environmental_memory'
+  | 'conversation_memory'
   | 'identity'
   | 'farm'
   | 'crops'
@@ -1296,16 +1305,26 @@ export interface FarmerAIAgent {
   primaryCrop?: string;
   farmSizeAcres?: number;
   status: AIAgentStatus;
+  safetyState: AISafetyState;
   automationMode: AIAutomationMode;
+  agentVersion: string;
   language: string;
   confidenceScore: number;
   humanEscalationRequired: boolean;
   lastInteractionAt?: string;
   lastAnalysisAt?: string;
+  lastActivityAt?: string;
   activeIssuesCount: number;
   createdAt: string;
   updatedAt: string;
 }
+
+export type FactVerificationLevel =
+  | 'VERIFIED_LAB_TEST'
+  | 'VERIFIED_OFFICIAL'
+  | 'AI_INFERRED'
+  | 'FARMER_REPORTED'
+  | 'TELEMETRY_OBSERVED';
 
 export interface FarmerAIMemory {
   id: string;
@@ -1316,6 +1335,11 @@ export interface FarmerAIMemory {
   memoryValue: any;
   source: string;
   confidence: number;
+  verificationLevel?: FactVerificationLevel;
+  decayHalfLifeDays?: number;
+  isActive: boolean;
+  supersededBy?: string;
+  auditTrail?: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -1330,10 +1354,98 @@ export interface AIAgentInteraction {
   inputSummary: string;
   outputSummary: string;
   recommendedActions?: string[];
-  recommendedProducts?: Array<{ id: string; name: string; price: number; reason: string }>;
+  recommendedProducts?: Array<{ id: string; name: string; price: number; reason: string; sponsored?: boolean }>;
   escalated: boolean;
   escalationReason?: string;
   createdAt: string;
+}
+
+export type AITaskType =
+  | 'morning_farm_scan'
+  | 'weather_risk_scan'
+  | 'irrigation_scan'
+  | 'soil_anomaly_scan'
+  | 'recommendation_followup'
+  | 'evening_farm_summary'
+  | 'market_intelligence_scan'
+  | 'crop_monitoring'
+  | 'soil_analysis'
+  | 'irrigation_review'
+  | 'weather_check'
+  | 'disease_risk_scan'
+  | 'advisory_followup'
+  | 'escalation_check';
+
+export type AITaskStatus =
+  | 'queued'
+  | 'running'
+  | 'completed'
+  | 'failed'
+  | 'retrying'
+  | 'cancelled'
+  | 'QUEUED'
+  | 'RUNNING'
+  | 'COMPLETED'
+  | 'FAILED'
+  | 'RETRYING'
+  | 'CANCELLED';
+
+export interface AITask {
+  id: string;
+  idempotencyKey?: string;
+  farmerId: string;
+  agentId: string;
+  taskType: AITaskType;
+  status: AITaskStatus;
+  riskLevel: AIRiskLevel;
+  payload: Record<string, any>;
+  result?: Record<string, any>;
+  retryCount: number;
+  maxRetries: number;
+  errorDetails?: string;
+  failureReason?: string;
+  scheduledFor: string;
+  executedAt?: string;
+  completedAt?: string;
+  failedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type AIFeedbackType =
+  | 'helpful'
+  | 'not_helpful'
+  | 'followed_recommendation'
+  | 'outcome_good'
+  | 'outcome_bad';
+
+export interface AIFeedback {
+  id: string;
+  farmerId: string;
+  agentId: string;
+  interactionId?: string;
+  feedbackType: AIFeedbackType;
+  comment?: string;
+  createdAt: string;
+}
+
+export type AIAnomalyType =
+  | 'REPEATED_AGENT_FAILURES'
+  | 'EXCESSIVE_TASK_CREATION'
+  | 'UNUSUAL_RECOMMENDATION_FREQUENCY'
+  | 'MEMORY_RETRIEVAL_ERRORS'
+  | 'REPEATED_LOW_CONFIDENCE';
+
+export interface AIAnomaly {
+  id: string;
+  anomalyType: AIAnomalyType;
+  severity: 'WARNING' | 'CRITICAL';
+  details: string;
+  agentId?: string;
+  farmerId?: string;
+  detectedAt: string;
+  resolved: boolean;
+  resolvedAt?: string;
 }
 
 export interface AIEscalation {
@@ -1362,6 +1474,8 @@ export interface AIAutomationSettings {
   escalationsToday: number;
   averageConfidence: number;
   highRiskBlockedToday: number;
+  tasksQueued?: number;
+  tasksCompletedToday?: number;
   updatedBy?: string;
   updatedAt: string;
 }
@@ -1378,7 +1492,13 @@ export interface AIAuditEvent {
     | 'AI_RECOMMENDATION_CREATED'
     | 'AI_ACTION_BLOCKED'
     | 'HUMAN_ESCALATION_CREATED'
-    | 'EMERGENCY_KILL_SWITCH_ACTIVATED';
+    | 'EMERGENCY_KILL_SWITCH_ACTIVATED'
+    | 'TASK_CREATED'
+    | 'TASK_COMPLETED'
+    | 'TASK_FAILED'
+    | 'TASK_CANCELLED'
+    | 'FEEDBACK_RECORDED'
+    | 'ANOMALY_DETECTED';
   actorId: string;
   actorRole: string;
   targetId?: string;
@@ -1394,7 +1514,202 @@ export interface AIInsightSummary {
   irrigationRecommendation?: { action: string; waterSchedule: string };
   soilConditionSummary?: { status: string; nitrogen: string; phosphorus: string; potassium: string };
   recentInteractions: AIAgentInteraction[];
+  activeTasks?: AITask[];
+  feedbackCount?: number;
 }
+
+// ============================================================================
+// PHASE 46.3: AUTONOMOUS AI AGENT ORCHESTRATION & PROACTIVE INTELLIGENCE
+// ============================================================================
+
+export type AIEventType =
+  | 'WEATHER_CHANGED'
+  | 'HEAVY_RAIN_FORECAST'
+  | 'HEAT_STRESS_RISK'
+  | 'SOIL_SENSOR_ANOMALY'
+  | 'CROP_DIAGNOSIS_REQUEST'
+  | 'IRRIGATION_DUE'
+  | 'MARKET_PRICE_CHANGE'
+  | 'FARMER_MESSAGE'
+  | 'GROWTH_STAGE_CHANGE';
+
+export type AIUrgencyLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+
+export type AIActionOutcome =
+  | 'PENDING'
+  | 'ACCEPTED'
+  | 'REJECTED'
+  | 'IGNORED'
+  | 'SUCCESSFUL'
+  | 'UNSUCCESSFUL';
+
+export interface AIExplainability {
+  whatIsHappening: string;
+  whyGenerated: string;
+  actionToBeTaken: string;
+  urgencyLevel: string;
+}
+
+export interface AIRecommendation {
+  id: string;
+  recommendation_id: string;
+  farmerId: string;
+  farmer_id: string;
+  createdAt: string;
+  created_at: string;
+  specialistAgentsUsed: string[];
+  specialist_agents_used: string[];
+  farmContextUsed: Record<string, any>;
+  farm_context_used: Record<string, any>;
+  recommendation: string;
+  urgency: AIUrgencyLevel;
+  confidenceScore: number;
+  confidence_score: number;
+  riskLevel: AIRiskLevel;
+  risk_level: AIRiskLevel;
+  reasoningSummary: string;
+  reasoning_summary: string;
+  expectedOutcome: string;
+  expected_outcome: string;
+  requiresConfirmation: boolean;
+  requires_confirmation: boolean;
+  requiresHumanReview: boolean;
+  requires_human_review: boolean;
+  status: 'ACTIVE' | 'CONFIRMED' | 'REJECTED' | 'EXECUTED' | 'EXPIRED';
+  farmerAction?: AIActionOutcome;
+  outcomeObserved?: string;
+  outcomeValidated?: boolean;
+  explainability: AIExplainability;
+  recommendedProducts?: Array<{ id: string; name: string; price: number; reason: string }>;
+  recommendedActions?: string[];
+}
+
+export interface AIEvent {
+  id: string;
+  eventType: AIEventType;
+  farmerId?: string;
+  farmerName?: string;
+  source: string;
+  payload: Record<string, any>;
+  timestamp: string;
+  processed: boolean;
+  recommendationId?: string;
+  idempotencyKey?: string;
+}
+
+export interface AINetworkMetrics {
+  totalActiveAgents: number;
+  agentsPaused: number;
+  tasksCompleted: number;
+  tasksFailed: number;
+  averageExecutionTimeMs: number;
+  safetyBlocks: number;
+  humanEscalations: number;
+  recommendationAccuracy: number;
+  farmerSatisfaction: number;
+  verifiedOutcomeSuccess: number;
+  unsafeRecommendations: number;
+  repeatedFailures: number;
+  aiTrustScore: number;
+  updatedAt: string;
+}
+
+export interface FarmerAgentMetrics {
+  farmerId: string;
+  farmerName?: string;
+  recommendationAcceptanceRate: number;
+  recommendationOutcomeSuccess: number;
+  farmerSatisfaction: number;
+  escalationFrequency: number;
+  averageConfidence: number;
+  recommendationFailureRate: number;
+  totalRecommendations: number;
+  verifiedOutcomes: number;
+}
+
+export interface DailyFarmPlan {
+  date: string;
+  farmerId: string;
+  farmerName?: string;
+  cropName?: string;
+  weatherOutlook: string;
+  morningScan: string[];
+  afternoonScan: string[];
+  eveningScan: string[];
+  urgentActions: Array<{ title: string; urgency: AIUrgencyLevel; advice: string }>;
+  generatedAt: string;
+}
+
+export type TelemetryProviderId =
+  | 'ISRO_BHUVAN'
+  | 'SENTINEL_2'
+  | 'NASA_POWER'
+  | 'OPEN_METEO'
+  | 'IOT_SENSORS'
+  | 'ENAM_AGMARKNET'
+  | 'DRONE_FLEET'
+  | 'AGRONOMIC_HEURISTIC_MODEL'
+  | 'FARMER_REPORTED';
+
+export type TelemetryMode = 'LIVE' | 'CACHED' | 'FALLBACK_MODEL' | 'FARMER_REPORTED';
+
+export interface TelemetryDataStatus {
+  provider: TelemetryProviderId;
+  mode: TelemetryMode;
+  configured: boolean;
+  last_sync: string;
+  staleness_seconds: number;
+  fallback_reason: string | null;
+  confidence_penalty: number;
+  displayNotice?: string;
+}
+
+export interface ProviderTelemetryData {
+  satellite: {
+    available: boolean;
+    ndviScore: number;
+    canopyVigor: string;
+    cloudCoverPercent: number;
+    lastPassTimestamp: string;
+    data_status: TelemetryDataStatus;
+  };
+  weather: {
+    available: boolean;
+    temperatureC: number;
+    humidityPercent: number;
+    rainProbability: number;
+    windSpeedKmh: number;
+    sprayWindowAdvisory: string;
+    extremeAlert?: string;
+    data_status: TelemetryDataStatus;
+  };
+  sensors: {
+    available: boolean;
+    soilMoisturePercent: number;
+    soilTemperatureC: number;
+    soilPh: number;
+    npkStatus: { n: number; p: number; k: number };
+    leafWetness: string;
+    data_status: TelemetryDataStatus;
+  };
+  market: {
+    available: boolean;
+    currentMandiPrice: number;
+    priceTrend: 'rising' | 'stable' | 'falling';
+    bestSellingMonth: string;
+    demandIndex: string;
+    data_status: TelemetryDataStatus;
+  };
+  drone: {
+    available: boolean;
+    lastInspectionDate: string;
+    coverageAcres: number;
+    pestHotspotsDetected: number;
+    weedDensityCategory: string;
+    data_status: TelemetryDataStatus;
+  };
+}
+
 
 
 

@@ -3,7 +3,7 @@ import path from 'path';
 import crypto from 'crypto';
 import { getSupabase } from './supabase.js';
 
-const DATA_DIR = path.join(process.cwd(), 'data');
+const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), 'data');
 const LEDGER_FILE = path.join(DATA_DIR, 'financial_ledger_db.json');
 
 function ensureDataDir() {

@@ -147,13 +147,22 @@ export interface AdminOperationalAlert {
   createdBy?: string;
 }
 
-const CARTS_FILE = path.join(process.cwd(), 'farmer_carts.json');
-const ORDERS_FILE = path.join(process.cwd(), 'farmer_orders.json');
-const PRODUCTS_FILE = path.join(process.cwd(), 'agri_products.json');
-const CATEGORIES_FILE = path.join(process.cwd(), 'agri_categories.json');
-const INVENTORY_LOGS_FILE = path.join(process.cwd(), 'admin_inventory_logs.json');
-const NOTIFICATIONS_FILE = path.join(process.cwd(), 'admin_notifications.json');
-const ALERTS_FILE = path.join(process.cwd(), 'admin_alerts.json');
+const STORE_DATA_DIR = process.env.DATA_DIR || process.cwd();
+if (process.env.DATA_DIR && !fs.existsSync(process.env.DATA_DIR)) {
+  try {
+    fs.mkdirSync(process.env.DATA_DIR, { recursive: true });
+  } catch (e) {
+    console.warn('[AgriStore] Could not create DATA_DIR:', e);
+  }
+}
+
+const CARTS_FILE = path.join(STORE_DATA_DIR, 'farmer_carts.json');
+const ORDERS_FILE = path.join(STORE_DATA_DIR, 'farmer_orders.json');
+const PRODUCTS_FILE = path.join(STORE_DATA_DIR, 'agri_products.json');
+const CATEGORIES_FILE = path.join(STORE_DATA_DIR, 'agri_categories.json');
+const INVENTORY_LOGS_FILE = path.join(STORE_DATA_DIR, 'admin_inventory_logs.json');
+const NOTIFICATIONS_FILE = path.join(STORE_DATA_DIR, 'admin_notifications.json');
+const ALERTS_FILE = path.join(STORE_DATA_DIR, 'admin_alerts.json');
 
 // Canonical Initial Categories
 export const INITIAL_CATEGORIES: ProductCategory[] = [
@@ -1053,6 +1062,37 @@ export function createFarmerOrder(params: {
   const orderNumber = `CRX-${Date.now().toString().slice(-6)}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
   const now = new Date().toISOString();
 
+  // Deduct inventory stock and record audit logs server-side
+  const products = readProducts();
+  const inventoryLogs = readInventoryLogs();
+
+  for (const item of orderItems) {
+    const pIdx = products.findIndex(p => p.id === item.productId);
+    if (pIdx !== -1) {
+      const prevStock = products[pIdx].stockQuantity;
+      const newStock = Math.max(0, prevStock - item.quantity);
+      products[pIdx].stockQuantity = newStock;
+      products[pIdx].isInStock = newStock > 0;
+      products[pIdx].updatedAt = now;
+
+      inventoryLogs.unshift({
+        id: `inv_sale_${Date.now()}_${crypto.randomBytes(2).toString('hex')}`,
+        productId: item.productId,
+        productName: item.productName,
+        operation: 'SALE',
+        quantityChanged: -item.quantity,
+        previousStock: prevStock,
+        newStock,
+        reason: `Order placed #${orderNumber}`,
+        adminName: 'SYSTEM_CHECKOUT',
+        timestamp: now
+      });
+    }
+  }
+
+  saveProducts(products);
+  saveInventoryLogs(inventoryLogs);
+
   const newOrder: FarmerOrder = {
     id: `ord_${crypto.randomUUID()}`,
     orderNumber,
@@ -1217,11 +1257,26 @@ export function createProductAdmin(data: Partial<AgriProduct>, adminName: string
     throw new Error('Product name, category, and price are required.');
   }
 
+  const price = Number(data.price);
+  if (isNaN(price) || price <= 0) {
+    throw new Error('Product price must be a valid positive number.');
+  }
+
+  const stockQty = data.stockQuantity !== undefined ? Number(data.stockQuantity) : 0;
+  if (isNaN(stockQty) || stockQty < 0) {
+    throw new Error('Stock quantity cannot be negative.');
+  }
+
   const products = readProducts();
+  const sku = (data.sku && data.sku.trim()) || `SKU-${Date.now().toString().slice(-6)}`;
+  const duplicateSku = products.find(p => p.sku && p.sku.toLowerCase() === sku.toLowerCase());
+  if (duplicateSku) {
+    throw new Error(`A product with SKU "${sku}" already exists (${duplicateSku.name}).`);
+  }
+
+  const gstRatePercent = data.gstRatePercent !== undefined ? Math.max(0, Math.min(28, Number(data.gstRatePercent))) : 5;
   const id = `prod_${crypto.randomUUID().slice(0, 8)}`;
   const now = new Date().toISOString();
-  const stockQty = Number(data.stockQuantity) || 0;
-  const price = Number(data.price) || 0;
   const origPrice = data.originalPrice ? Number(data.originalPrice) : Math.round(price * 1.15);
 
   const newProduct: AgriProduct = {
@@ -1246,9 +1301,9 @@ export function createProductAdmin(data: Partial<AgriProduct>, adminName: string
     safetyInformation: data.safetyInformation || '',
     isFeatured: !!data.isFeatured,
     isRecommended: !!data.isRecommended,
-    sku: data.sku || `SKU-${Date.now().toString().slice(-6)}`,
+    sku,
     manufacturer: data.manufacturer || 'CroperX AgriTech Certified',
-    gstRatePercent: data.gstRatePercent !== undefined ? Number(data.gstRatePercent) : 5,
+    gstRatePercent,
     createdAt: now,
     updatedAt: now
   };
@@ -1290,6 +1345,28 @@ export function updateProductAdmin(productId: string, updates: Partial<AgriProdu
   const idx = products.findIndex(p => p.id === productId);
   if (idx === -1) {
     throw new Error('Product not found.');
+  }
+
+  if (updates.price !== undefined) {
+    const price = Number(updates.price);
+    if (isNaN(price) || price <= 0) {
+      throw new Error('Product price must be a valid positive number.');
+    }
+  }
+
+  if (updates.stockQuantity !== undefined) {
+    const stockQty = Number(updates.stockQuantity);
+    if (isNaN(stockQty) || stockQty < 0) {
+      throw new Error('Stock quantity cannot be negative.');
+    }
+  }
+
+  if (updates.sku !== undefined && updates.sku.trim()) {
+    const cleanSku = updates.sku.trim().toLowerCase();
+    const duplicate = products.find(p => p.id !== productId && p.sku && p.sku.toLowerCase() === cleanSku);
+    if (duplicate) {
+      throw new Error(`A product with SKU "${updates.sku}" already exists (${duplicate.name}).`);
+    }
   }
 
   const prev = products[idx];

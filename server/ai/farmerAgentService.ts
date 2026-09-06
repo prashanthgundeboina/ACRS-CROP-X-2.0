@@ -5,6 +5,7 @@ import {
   AIAutomationSettings,
   AIAutomationMode,
   AIAgentStatus,
+  AISafetyState,
   AIAuditEvent
 } from './types';
 import { MemoryService } from './memoryService';
@@ -28,6 +29,8 @@ let globalSettings: AIAutomationSettings = {
   escalationsToday: 2,
   averageConfidence: 94.2,
   highRiskBlockedToday: 1,
+  tasksQueued: 0,
+  tasksCompletedToday: 28,
   updatedBy: 'SYSTEM_INIT',
   updatedAt: new Date().toISOString()
 };
@@ -36,10 +39,32 @@ function loadState() {
   try {
     if (fs.existsSync(AGENTS_FILE_PATH)) {
       const raw = fs.readFileSync(AGENTS_FILE_PATH, 'utf-8');
-      const list: FarmerAIAgent[] = JSON.parse(raw);
+      const list: any[] = JSON.parse(raw);
       agentsMap.clear();
-      for (const a of list) {
-        agentsMap.set(a.farmerId, a);
+      for (const item of list) {
+        const agent: FarmerAIAgent = {
+          id: item.id,
+          farmerId: item.farmerId,
+          farmerName: item.farmerName,
+          phoneNumber: item.phoneNumber,
+          location: item.location,
+          primaryCrop: item.primaryCrop,
+          farmSizeAcres: item.farmSizeAcres,
+          status: item.status || 'ACTIVE',
+          safetyState: item.safetyState || 'NORMAL',
+          automationMode: item.automationMode || 'HYBRID',
+          agentVersion: item.agentVersion || 'v2.0-prod',
+          language: item.language || 'en',
+          confidenceScore: item.confidenceScore || 95.0,
+          humanEscalationRequired: !!item.humanEscalationRequired,
+          lastInteractionAt: item.lastInteractionAt,
+          lastAnalysisAt: item.lastAnalysisAt,
+          lastActivityAt: item.lastActivityAt || item.updatedAt,
+          activeIssuesCount: item.activeIssuesCount || 0,
+          createdAt: item.createdAt || new Date().toISOString(),
+          updatedAt: item.updatedAt || new Date().toISOString()
+        };
+        agentsMap.set(agent.farmerId, agent);
       }
     }
 
@@ -91,7 +116,7 @@ export class FarmerAgentService {
       timestamp: new Date().toISOString()
     };
     auditEvents.unshift(event);
-    if (auditEvents.length > 200) auditEvents = auditEvents.slice(0, 200);
+    if (auditEvents.length > 300) auditEvents = auditEvents.slice(0, 300);
     saveState();
     return event;
   }
@@ -123,6 +148,13 @@ export class FarmerAgentService {
     globalSettings.updatedBy = actorId;
     globalSettings.updatedAt = new Date().toISOString();
 
+    // Propagate mode to all active agents
+    for (const [fId, agent] of agentsMap.entries()) {
+      agent.automationMode = mode;
+      agent.updatedAt = new Date().toISOString();
+      agentsMap.set(fId, agent);
+    }
+
     this.logAuditEvent(
       enabled ? 'AUTOMATION_ENABLED' : 'AUTOMATION_DISABLED',
       actorId,
@@ -144,10 +176,11 @@ export class FarmerAgentService {
     globalSettings.updatedBy = actorId;
     globalSettings.updatedAt = new Date().toISOString();
 
-    // Pause all agents
+    // Pause all agents and set restricted safety state
     for (const [fId, agent] of agentsMap.entries()) {
       if (agent.status === 'ACTIVE') {
         agent.status = 'PAUSED';
+        agent.safetyState = 'RESTRICTED';
         agent.updatedAt = new Date().toISOString();
         agentsMap.set(fId, agent);
       }
@@ -170,10 +203,11 @@ export class FarmerAgentService {
     globalSettings.updatedBy = actorId;
     globalSettings.updatedAt = new Date().toISOString();
 
-    // Restore paused agents to active
+    // Restore paused agents to active and normal safety state
     for (const [fId, agent] of agentsMap.entries()) {
       if (agent.status === 'PAUSED') {
         agent.status = 'ACTIVE';
+        agent.safetyState = 'NORMAL';
         agent.updatedAt = new Date().toISOString();
         agentsMap.set(fId, agent);
       }
@@ -214,13 +248,16 @@ export class FarmerAgentService {
         primaryCrop: farmer.primaryCrop || 'Paddy (Rice)',
         farmSizeAcres: farmer.farmSizeAcres || 3.5,
         status: globalSettings.emergencyStop ? 'PAUSED' : 'ACTIVE',
+        safetyState: 'NORMAL',
         automationMode: globalSettings.automationMode,
+        agentVersion: 'v2.0-prod',
         language: farmer.language || 'en',
         confidenceScore: 95.0,
         humanEscalationRequired: false,
         activeIssuesCount: 0,
         createdAt: now,
-        updatedAt: now
+        updatedAt: now,
+        lastActivityAt: now
       };
       agentsMap.set(farmer.id, agent);
 
@@ -228,35 +265,50 @@ export class FarmerAgentService {
       MemoryService.upsertMemory(
         farmer.id,
         agent.id,
-        'identity',
+        'farmer_profile',
         'farmer_name',
         farmer.name,
-        'ONBOARDING'
+        'ONBOARDING',
+        1.0
       );
       if (farmer.primaryCrop) {
         MemoryService.upsertMemory(
           farmer.id,
           agent.id,
-          'crops',
+          'crop_memory',
           'primary_crop',
           farmer.primaryCrop,
-          'ONBOARDING'
+          'ONBOARDING',
+          1.0
         );
       }
       if (farmer.location) {
         MemoryService.upsertMemory(
           farmer.id,
           agent.id,
-          'farm',
+          'farmer_profile',
           'farm_location',
           farmer.location,
-          'ONBOARDING'
+          'ONBOARDING',
+          1.0
+        );
+      }
+      if (farmer.farmSizeAcres) {
+        MemoryService.upsertMemory(
+          farmer.id,
+          agent.id,
+          'farmer_profile',
+          'farm_size_acres',
+          farmer.farmSizeAcres,
+          'ONBOARDING',
+          1.0
         );
       }
 
       this.logAuditEvent('AGENT_PROVISIONED', 'SYSTEM', 'system', agent.id, {
         farmerId: farmer.id,
-        farmerName: farmer.name
+        farmerName: farmer.name,
+        agentVersion: 'v2.0-prod'
       });
 
       saveState();
@@ -271,8 +323,21 @@ export class FarmerAgentService {
         agent.language = farmer.language;
         changed = true;
       }
+      if (farmer.primaryCrop && agent.primaryCrop !== farmer.primaryCrop) {
+        agent.primaryCrop = farmer.primaryCrop;
+        changed = true;
+      }
+      if (farmer.farmSizeAcres && agent.farmSizeAcres !== farmer.farmSizeAcres) {
+        agent.farmSizeAcres = farmer.farmSizeAcres;
+        changed = true;
+      }
+      if (farmer.location && agent.location !== farmer.location) {
+        agent.location = farmer.location;
+        changed = true;
+      }
       if (changed) {
         agent.updatedAt = now;
+        agent.lastActivityAt = now;
         agentsMap.set(farmer.id, agent);
         saveState();
       }
@@ -296,7 +361,17 @@ export class FarmerAgentService {
   }
 
   /**
-   * Update agent status (e.g. Pause, Resume, Escalate).
+   * Get an agent by its unique agent ID (e.g. AGT-FRM-...).
+   */
+  static getAgentById(agentId: string): FarmerAIAgent | null {
+    for (const agent of agentsMap.values()) {
+      if (agent.id === agentId) return agent;
+    }
+    return null;
+  }
+
+  /**
+   * Update agent status (e.g. Pause, Resume, Escalate, Disable, Error).
    */
   static setAgentStatus(
     farmerId: string,
@@ -308,6 +383,7 @@ export class FarmerAgentService {
 
     agent.status = status;
     agent.updatedAt = new Date().toISOString();
+    agent.lastActivityAt = new Date().toISOString();
     agentsMap.set(farmerId, agent);
 
     this.logAuditEvent(
@@ -318,6 +394,24 @@ export class FarmerAgentService {
       { farmerId, newStatus: status }
     );
 
+    saveState();
+    return agent;
+  }
+
+  /**
+   * Update agent safety state.
+   */
+  static setAgentSafetyState(
+    farmerId: string,
+    safetyState: AISafetyState,
+    actorId: string = 'ADMIN'
+  ): FarmerAIAgent {
+    const agent = agentsMap.get(farmerId);
+    if (!agent) throw new Error('Farmer agent not found');
+
+    agent.safetyState = safetyState;
+    agent.updatedAt = new Date().toISOString();
+    agentsMap.set(farmerId, agent);
     saveState();
     return agent;
   }

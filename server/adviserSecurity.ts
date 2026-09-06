@@ -3,7 +3,7 @@ import path from 'path';
 import crypto from 'crypto';
 import { getSupabase } from './supabase.js';
 
-const DATA_DIR = path.join(process.cwd(), 'data');
+const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), 'data');
 const EXAM_SESSIONS_FILE = path.join(DATA_DIR, 'adviser_exam_sessions_db.json');
 const EXAM_VIOLATIONS_FILE = path.join(DATA_DIR, 'adviser_exam_violations_db.json');
 const EXAM_SECURITY_LOGS_FILE = path.join(DATA_DIR, 'adviser_security_events_db.json');

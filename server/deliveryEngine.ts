@@ -4,7 +4,7 @@ import crypto from 'crypto';
 import { getSupabase } from './supabase.js';
 import { recordLedgerEntry } from './financialLedger.js';
 
-const DATA_DIR = path.join(process.cwd(), 'data');
+const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), 'data');
 const PARTNERS_FILE = path.join(DATA_DIR, 'delivery_partners_db.json');
 const JOBS_FILE = path.join(DATA_DIR, 'delivery_jobs_db.json');
 const EARNINGS_FILE = path.join(DATA_DIR, 'delivery_earnings_db.json');
@@ -516,8 +516,10 @@ export function completeDeliveryWithProof(params: {
   // Validate OTP if OTP method is used
   if (params.method === 'OTP' && job.verificationOtp) {
     const inputCode = (params.otpCode || '').trim();
-    if (inputCode !== job.verificationOtp && inputCode !== '1234' && inputCode !== '123456') {
-      throw new Error('Invalid delivery OTP. Please verify the 4-digit code provided by the farmer.');
+    const isDevOtpAllowed = process.env.NODE_ENV !== 'production' && process.env.ENABLE_DEV_OTP === 'true';
+    const isMatchingOtp = inputCode === job.verificationOtp || (isDevOtpAllowed && (inputCode === '1234' || inputCode === '123456'));
+    if (!isMatchingOtp) {
+      throw new Error('Invalid delivery OTP. Please verify the code provided by the farmer.');
     }
   }
 
