@@ -8,7 +8,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install dependencies (including devDependencies for TypeScript build)
-RUN npm ci
+RUN npm install --no-audit --no-fund
 
 # Copy source code and config
 COPY . .
@@ -26,7 +26,7 @@ ENV PORT=3000
 
 # Install production dependencies only
 COPY package*.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+RUN npm install --omit=dev --no-audit --no-fund && npm cache clean --force
 
 # Copy compiled artifacts from builder stage
 COPY --from=builder /app/dist ./dist
